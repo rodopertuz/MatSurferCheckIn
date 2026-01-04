@@ -40,13 +40,6 @@ type Usuario = {
 };
 
 function AppContent() {
-  // ...existing code...
-
-  // ...existing code...
-
-  // ...existing code...
-
-  // ...existing code...
 
   // Declarar clasesAhoraRaw y setClasesAhoraRaw al inicio
   const [clasesAhoraRaw, setClasesAhoraRaw] = React.useState<any>(null);
@@ -73,7 +66,7 @@ function AppContent() {
   const [ondeckLoading, setOndeckLoading] = useState(false);
   const [ondeckError, setOndeckError] = useState('');
 
-  // Función para consultar la API con método POST y acción 'ondeck'
+  // Función para consultar la API con método GET y acción 'ondeck'
   const fetchOndeck = async () => {
     setOndeckLoading(true);
     setOndeckError('');
@@ -106,34 +99,75 @@ function AppContent() {
   React.useEffect(() => {
     if (popupVisible && selectedUsuario) {
       let opciones: string[] = [];
-      // Clase actual
+      // Clase actual con ambos filtros
       if (claseActualObj && claseActualObj.disciplina && claseActualObj.disciplina.trim().toLowerCase() !== 'ninguno') {
         const esCoach = selectedUsuario?.roles && selectedUsuario.roles.toLowerCase().includes('coach');
-        let disponible = false;
-        if (esCoach) {
-          disponible = true;
+        let grupoEdad = '';
+        let accesoTotal = false;
+        if (
+          selectedUsuario?.edad === undefined ||
+          selectedUsuario?.edad === null ||
+          (typeof selectedUsuario?.edad === 'number' && selectedUsuario.edad === 0) ||
+          (typeof selectedUsuario?.edad === 'string' && String(selectedUsuario.edad).trim() === '')
+        ) {
+          accesoTotal = true;
+        } else {
+          if (selectedUsuario.edad >= 18) grupoEdad = 'adultos';
+          else if (selectedUsuario.edad >= 11) grupoEdad = 'teens';
+          else grupoEdad = 'kids';
+        }
+        // Filtro de grupo de edad
+        let claseParaGrupo = true;
+        if (!accesoTotal && claseActualObj.grupo) {
+          const grupoClase = claseActualObj.grupo.trim().toLowerCase();
+          if (grupoEdad === 'adultos' && !grupoClase.includes('adult')) claseParaGrupo = false;
+          if (grupoEdad === 'teens' && !grupoClase.includes('teen')) claseParaGrupo = false;
+          if (grupoEdad === 'kids' && !grupoClase.includes('kid')) claseParaGrupo = false;
+        }
+        // Filtro de acceso por usuario
+        let accesoUsuario = false;
+        if (esCoach || accesoTotal) {
+          accesoUsuario = true;
         } else {
           const esTiquetera = selectedUsuario?.plan?.toLowerCase().includes('tiquetera');
           if (esTiquetera) {
             const saldoClases = selectedUsuario?.saldo_clases && selectedUsuario?.saldo_clases !== '0';
-            disponible = !!saldoClases;
+            accesoUsuario = !!saldoClases;
           } else {
             const clasesUsuario = Array.isArray(selectedUsuario?.clases_usuario) ? selectedUsuario?.clases_usuario.flat() : [];
             const disciplina = claseActualObj.disciplina ? claseActualObj.disciplina.trim() : '';
-            disponible = clasesUsuario.some(c => c.trim().toLowerCase() === disciplina.toLowerCase());
+            accesoUsuario = clasesUsuario.some(c => c.trim().toLowerCase() === disciplina.toLowerCase());
           }
         }
+        // Solo habilitado si ambos filtros son true
+        const disponible = claseParaGrupo && accesoUsuario;
         if (disponible) {
           opciones.push('actual');
         }
       }
-      // Próximas clases
+      // Próximas clases con filtro por grupo de edad
       if (clasesSiguientesArr.length > 0) {
         for (let idx = 0; idx < clasesSiguientesArr.length; idx++) {
           const clase = clasesSiguientesArr[idx];
           if (!clase.disciplina || clase.disciplina.trim().toLowerCase() === 'ninguno') continue;
           const esCoach = selectedUsuario?.roles && selectedUsuario.roles.toLowerCase().includes('coach');
           let disponible = false;
+          // Filtrar por grupo de edad
+          let grupoEdad = '';
+          if (selectedUsuario?.edad !== undefined && selectedUsuario?.edad !== null) {
+            if (selectedUsuario.edad >= 18) grupoEdad = 'adultos';
+            else if (selectedUsuario.edad >= 11) grupoEdad = 'teens';
+            else grupoEdad = 'kids';
+          }
+          // Determinar si la clase corresponde al grupo de edad
+          let claseParaGrupo = true;
+          if (clase.grupo) {
+            const grupoClase = clase.grupo.trim().toLowerCase();
+            if (grupoEdad === 'adultos' && !grupoClase.includes('adult')) claseParaGrupo = false;
+            if (grupoEdad === 'teens' && !grupoClase.includes('teen')) claseParaGrupo = false;
+            if (grupoEdad === 'kids' && !grupoClase.includes('kid')) claseParaGrupo = false;
+          }
+          if (!claseParaGrupo) continue;
           if (esCoach) {
             disponible = true;
           } else {
@@ -367,25 +401,48 @@ function AppContent() {
                 </TouchableOpacity>
               )}
 
-              {/* Clase actual */}
+              {/* Clase actual con ambos filtros */}
               {claseActualObj && (claseActualObj.disciplina || claseActualObj.grupo) &&
                 claseActualObj.disciplina && claseActualObj.disciplina.trim().toLowerCase() !== 'ninguno' ? (() => {
-                // Activar todas las clases si es coach
                 const esCoach = selectedUsuario?.roles && selectedUsuario.roles.toLowerCase().includes('coach');
-                let disponible = false;
-                if (esCoach) {
-                  disponible = true;
+                let grupoEdad = '';
+                let accesoTotal = false;
+                if (
+                  selectedUsuario?.edad === undefined ||
+                  selectedUsuario?.edad === null ||
+                  (typeof selectedUsuario?.edad === 'number' && selectedUsuario.edad === 0) ||
+                  (typeof selectedUsuario?.edad === 'string' && String(selectedUsuario.edad).trim() === '')
+                ) {
+                  accesoTotal = true;
+                } else {
+                  if (selectedUsuario.edad >= 18) grupoEdad = 'adultos';
+                  else if (selectedUsuario.edad >= 11) grupoEdad = 'teens';
+                  else grupoEdad = 'kids';
+                }
+                // Filtro de grupo de edad
+                let claseParaGrupo = true;
+                if (!accesoTotal && claseActualObj.grupo) {
+                  const grupoClase = claseActualObj.grupo.trim().toLowerCase();
+                  if (grupoEdad === 'adultos' && !grupoClase.includes('adult')) claseParaGrupo = false;
+                  if (grupoEdad === 'teens' && !grupoClase.includes('teen')) claseParaGrupo = false;
+                  if (grupoEdad === 'kids' && !grupoClase.includes('kid')) claseParaGrupo = false;
+                }
+                // Filtro de acceso por usuario
+                let accesoUsuario = false;
+                if (esCoach || accesoTotal) {
+                  accesoUsuario = true;
                 } else {
                   const esTiquetera = selectedUsuario?.plan?.toLowerCase().includes('tiquetera');
                   if (esTiquetera) {
                     const saldoClases = selectedUsuario?.saldo_clases && selectedUsuario?.saldo_clases !== '0';
-                    disponible = !!saldoClases;
+                    accesoUsuario = !!saldoClases;
                   } else {
                     const clasesUsuario = Array.isArray(selectedUsuario?.clases_usuario) ? selectedUsuario?.clases_usuario.flat() : [];
                     const disciplina = claseActualObj.disciplina ? claseActualObj.disciplina.trim() : '';
-                    disponible = clasesUsuario.some(c => c.trim().toLowerCase() === disciplina.toLowerCase());
+                    accesoUsuario = clasesUsuario.some(c => c.trim().toLowerCase() === disciplina.toLowerCase());
                   }
                 }
+                const disponible = claseParaGrupo && accesoUsuario;
                 return (
                   <TouchableOpacity
                     style={[styles.popupClaseItem, !disponible && {opacity: 0.5}]}
@@ -409,26 +466,51 @@ function AppContent() {
                 );
               })() : null}
 
-              {/* Próximas clases */}
+              {/* Próximas clases: siempre mostrar todas, solo aplicar filtro de grupo de edad para el estilo habilitado/deshabilitado */}
               {clasesSiguientesArr.length > 0 &&
                 clasesSiguientesArr
                   .filter(clase => clase.disciplina && clase.disciplina.trim().toLowerCase() !== 'ninguno')
                   .map((clase: any, idx: number) => {
                     const esCoach = selectedUsuario?.roles && selectedUsuario.roles.toLowerCase().includes('coach');
-                    let disponible = false;
-                    if (esCoach) {
-                      disponible = true;
+                    let grupoEdad = '';
+                    let accesoTotal = false;
+                    if (
+                      selectedUsuario?.edad === undefined ||
+                      selectedUsuario?.edad === null ||
+                      (typeof selectedUsuario?.edad === 'number' && selectedUsuario.edad === 0) ||
+                      (typeof selectedUsuario?.edad === 'string' && String(selectedUsuario.edad).trim() === '')
+                    ) {
+                      accesoTotal = true;
+                    } else {
+                      if (selectedUsuario.edad >= 18) grupoEdad = 'adultos';
+                      else if (selectedUsuario.edad >= 11) grupoEdad = 'teens';
+                      else if (selectedUsuario.edad > 3) grupoEdad = 'kids';
+                    }
+                    // Filtro de grupo de edad
+                    let claseParaGrupo = true;
+                    if (!accesoTotal && clase.grupo) {
+                      const grupoClase = clase.grupo.trim().toLowerCase();
+                      if (grupoEdad === 'adultos' && !grupoClase.includes('adult')) claseParaGrupo = false;
+                      if (grupoEdad === 'teens' && !grupoClase.includes('teen')) claseParaGrupo = false;
+                      if (grupoEdad === 'kids' && !grupoClase.includes('kid')) claseParaGrupo = false;
+                    }
+                    // Filtro de acceso por usuario
+                    let accesoUsuario = false;
+                    if (esCoach || accesoTotal) {
+                      accesoUsuario = true;
                     } else {
                       const esTiquetera = selectedUsuario?.plan?.toLowerCase().includes('tiquetera');
                       if (esTiquetera) {
                         const saldoClases = selectedUsuario?.saldo_clases && selectedUsuario?.saldo_clases !== '0';
-                        disponible = !!saldoClases;
+                        accesoUsuario = !!saldoClases;
                       } else {
                         const clasesUsuario = Array.isArray(selectedUsuario?.clases_usuario) ? selectedUsuario?.clases_usuario.flat() : [];
                         const disciplina = clase.disciplina ? clase.disciplina.trim() : '';
-                        disponible = clasesUsuario.some(c => c.trim().toLowerCase() === disciplina.toLowerCase());
+                        accesoUsuario = clasesUsuario.some(c => c.trim().toLowerCase() === disciplina.toLowerCase());
                       }
                     }
+                    // Solo habilitado si ambos filtros son true
+                    const disponible = claseParaGrupo && accesoUsuario;
                     return (
                       <TouchableOpacity
                         key={idx}
@@ -533,6 +615,7 @@ function AppContent() {
                     }
                   } catch (err) {
                     setCheckinMessage('Error de red al realizar el check-in.');
+                    
                   }
                 }}
               />
