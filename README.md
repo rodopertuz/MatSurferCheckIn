@@ -1,97 +1,330 @@
-This is a new [**React Native**](https://reactnative.dev) project, bootstrapped using [`@react-native-community/cli`](https://github.com/react-native-community/cli).
+# MatSurfer Check-In App - Documentación Técnica
 
-# Getting Started
+## Descripción General
+Aplicación React Native para gestión de check-in de alumnos en clases de Satori Jiu-Jitsu. Permite visualizar usuarios, clases disponibles y registrar asistencia.
 
-> **Note**: Make sure you have completed the [Set Up Your Environment](https://reactnative.dev/docs/set-up-your-environment) guide before proceeding.
+## API
+**Base URL**: `https://www.satorijiujitsu.com.co/api/api.php`  
+**Authorization**: `Bearer ElArtesuave2023`
 
-## Step 1: Start Metro
+### Endpoints
 
-First, you will need to run **Metro**, the JavaScript build tool for React Native.
+#### 1. GET `?action=usuarios`
+Obtiene listado de usuarios y clases disponibles.
 
-To start the Metro dev server, run the following command from the root of your React Native project:
-
-```sh
-# Using npm
-npm start
-
-# OR using Yarn
-yarn start
+**Respuesta**:
+```json
+{
+  "usuarios": [...],
+  "fotos": [...],
+  "logo_url": "...",
+  "clases_ahora": {
+    "actual": {
+      "disciplina": "...",
+      "grupo": "...",
+      "start": "...",
+      "end": "..."
+    },
+    "proximas": [
+      {
+        "disciplina": "...",
+        "grupo": "...",
+        "start": "...",
+        "end": "..."
+      }
+    ]
+  },
+  "clases_usuario": [[...], [...]]
+}
 ```
 
-## Step 2: Build and run your app
+#### 2. GET `?action=ondeck`
+Consulta estado de clases en curso (actualización cada 5 segundos).
 
-With Metro running, open a new terminal window/pane from the root of your React Native project, and use one of the following commands to build and run your Android or iOS app:
+#### 3. POST `?action=check-in`
+Registra check-in de usuario en clases seleccionadas.
 
-### Android
-
-```sh
-# Using npm
-npm run android
-
-# OR using Yarn
-yarn android
+**Body**:
+```json
+{
+  "nombre_tabla": "...",
+  "clases": [
+    {
+      "tipo": "actual|proxima|personalizada",
+      "disciplina": "...",
+      "grupo": "...",
+      "start": "...",
+      "end": "...",
+      "hora": "..." (solo para personalizada)
+    }
+  ]
+}
 ```
 
-### iOS
-
-For iOS, remember to install CocoaPods dependencies (this only needs to be run on first clone or after updating native deps).
-
-The first time you create a new project, run the Ruby bundler to install CocoaPods itself:
-
-```sh
-bundle install
+**Respuesta exitosa**:
+```json
+{
+  "success": true
+}
 ```
 
-Then, and every time you update your native dependencies, run:
-
-```sh
-bundle exec pod install
+**Respuesta con error**:
+```json
+{
+  "error": "Descripción del error"
+}
 ```
 
-For more information, please visit [CocoaPods Getting Started guide](https://guides.cocoapods.org/using/getting-started.html).
+## Lógica de Filtros
 
-```sh
-# Using npm
-npm run ios
+### 1. Filtro por Grupo de Edad
+Determina qué clases puede tomar un usuario según su edad:
 
-# OR using Yarn
-yarn ios
+- **Edad >= 18**: Solo clases de adultos (grupo contiene "adult")
+- **Edad >= 11 y < 18**: Solo clases de teens (grupo contiene "teen")
+- **Edad < 11**: Solo clases de kids (grupo contiene "kid")
+- **Edad = 0 o "" o null o undefined**: **Acceso total** - puede tomar todas las clases
+
+### 2. Filtro por Acceso de Usuario
+Determina si el usuario tiene permisos para una clase específica:
+
+- **Coach** (`roles` contiene "coach"): Acceso a todas las clases
+- **Acceso Total** (edad = 0 o vacía): Acceso a todas las clases
+- **Plan Tiquetera** (`plan` contiene "tiquetera"):
+  - Requiere `saldo_clases > 0`
+  - Si no hay saldo, no puede acceder
+- **Plan Regular**:
+  - Requiere que la disciplina esté en el array `clases_usuario[]`
+  - Comparación case-insensitive
+
+### 3. Aplicación de Filtros
+- **Ambos filtros se aplican simultáneamente** (operación AND lógica)
+- Las clases se muestran **SIEMPRE** en la lista del popup
+- Los filtros solo afectan el estado habilitado/deshabilitado:
+  - Clases habilitadas: `opacity: 1`, `disabled: false`
+  - Clases deshabilitadas: `opacity: 0.5`, `disabled: true`
+- Una clase está habilitada solo si pasa **ambos** filtros
+
+### 4. Clase Personalizada
+- Solo visible para usuarios que **NO** son coach
+- Requiere `saldo_clases_personalizadas > 0`
+- No tiene disciplina ni grupo asignado
+- Se registra con la hora actual
+
+## Estados Principales
+
+```typescript
+const [usuarios, setUsuarios] = useState<Usuario[]>([]);
+const [fotos, setFotos] = useState<string[]>([]);
+const [logoUrl, setLogoUrl] = useState<string>('');
+const [clasesAhoraRaw, setClasesAhoraRaw] = useState<any>(null);
+const [popupVisible, setPopupVisible] = useState(false);
+const [selectedUsuario, setSelectedUsuario] = useState<Usuario | null>(null);
+const [selectedClases, setSelectedClases] = useState<string[]>([]);
+const [checkinMessage, setCheckinMessage] = useState<string>('');
+const [search, setSearch] = useState('');
+const [ondeckResult, setOndeckResult] = useState<any>(null);
+const [loading, setLoading] = useState(true);
+const [error, setError] = useState('');
 ```
 
-If everything is set up correctly, you should see your new app running in the Android Emulator, iOS Simulator, or your connected device.
+## Tipo Usuario
 
-This is one way to run your app — you can also build it directly from Android Studio or Xcode.
+```typescript
+type Usuario = {
+  id: number;
+  nombre: string;
+  nombre_tabla: string;
+  edad: number;
+  plan: string;
+  foto: string;
+  grado: string;
+  estado: string;
+  saldo_clases?: string;
+  saldo_clases_personalizadas?: string;
+  clases_usuario?: string[];
+  roles?: string;
+  _fotoIndex?: number; // Índice para vincular con array de fotos
+};
+```
 
-## Step 3: Modify your app
+## Estructura de Clases
 
-Now that you have successfully run the app, let's make changes!
+### Clase Actual
+```typescript
+const claseActualObj: {
+  disciplina?: string;
+  grupo?: string;
+  start?: string;
+  end?: string;
+} | null
+```
 
-Open `App.tsx` in your text editor of choice and make some changes. When you save, your app will automatically update and reflect these changes — this is powered by [Fast Refresh](https://reactnative.dev/docs/fast-refresh).
+### Clases Próximas
+```typescript
+const clasesSiguientesArr: Array<{
+  disciplina?: string;
+  grupo?: string;
+  start?: string;
+  end?: string;
+}>
+```
 
-When you want to forcefully reload, for example to reset the state of your app, you can perform a full reload:
+## Flujo de Check-In
 
-- **Android**: Press the <kbd>R</kbd> key twice or select **"Reload"** from the **Dev Menu**, accessed via <kbd>Ctrl</kbd> + <kbd>M</kbd> (Windows/Linux) or <kbd>Cmd ⌘</kbd> + <kbd>M</kbd> (macOS).
-- **iOS**: Press <kbd>R</kbd> in iOS Simulator.
+1. **Usuario toca nombre/foto** en menú lateral
+2. **Se abre popup** con:
+   - Avatar y nombre del usuario
+   - Indicadores de saldo: `T [n]` (tiquetera), `P [n]` (personalizada)
+   - Estado del usuario
+   - Lista de clases disponibles:
+     - Personalizada (si aplica)
+     - Clase actual (si existe y no es "ninguno")
+     - Clases próximas (filtradas, sin "ninguno")
+3. **Selección automática**: 
+   - Se pre-selecciona la primera clase disponible y habilitada
+   - Si no hay clases habilitadas pero hay saldo personalizado, se selecciona "Personalizada"
+4. **Usuario puede cambiar selección** usando checkboxes
+5. **Al tocar "Aceptar"**:
+   - Valida que haya al menos una clase seleccionada
+   - Construye array con información completa de clases
+   - Envía POST a `?action=check-in`
+   - Muestra mensaje de éxito/error
+   - Cierra popup tras 1.5 segundos si es exitoso
+6. **Al tocar "Cancelar"** o fuera del popup:
+   - Cierra popup
+   - Limpia selecciones y mensaje
+   - Borra búsqueda
 
-## Congratulations! :tada:
+## Colores de Estado (Border)
 
-You've successfully run and modified your React Native App. :partying_face:
+Los usuarios se colorean según su estado:
 
-### Now what?
+- **activo**: `green` - Usuario con plan activo y saldo suficiente
+- **saldobajo**: `yellow` - Usuario con saldo bajo
+- **pendiente**: `orange` - Usuario con pagos pendientes
+- **inactivo**: `red` - Usuario sin plan activo
+- **congelado**: `#4FC3F7` (celeste) - Usuario con plan congelado
+- **default**: `#444` (gris oscuro)
 
-- If you want to add this new React Native code to an existing application, check out the [Integration guide](https://reactnative.dev/docs/integration-with-existing-apps).
-- If you're curious to learn more about React Native, check out the [docs](https://reactnative.dev/docs/getting-started).
+## Funcionalidades Implementadas
 
-# Troubleshooting
+### Búsqueda de Usuarios
+- Búsqueda parcial por nombre
+- Soporta múltiples palabras (todas deben coincidir)
+- Case-insensitive
+- La búsqueda se mantiene activa al cerrar popup
+- Se limpia solo con el botón "Cancelar"
 
-If you're having issues getting the above steps to work, see the [Troubleshooting](https://reactnative.dev/docs/troubleshooting) page.
+### Refresh
+- Pull-to-refresh en lista de usuarios
+- Recarga datos completos desde la API
+- Animación de carga nativa de React Native
 
-# Learn More
+### Actualización Automática
+- Consulta `ondeck` cada 5 segundos automáticamente
+- Muestra resultados en área principal (JSON crudo actualmente)
 
-To learn more about React Native, take a look at the following resources:
+### Visualización de Clases
+- **Menú superior**: Muestra clase actual y próxima clase
+- **Popup**: Lista completa con todas las opciones
+- **Filtro "ninguno"**: Se excluyen automáticamente clases con disciplina = "ninguno"
 
-- [React Native Website](https://reactnative.dev) - learn more about React Native.
-- [Getting Started](https://reactnative.dev/docs/environment-setup) - an **overview** of React Native and how setup your environment.
-- [Learn the Basics](https://reactnative.dev/docs/getting-started) - a **guided tour** of the React Native **basics**.
-- [Blog](https://reactnative.dev/blog) - read the latest official React Native **Blog** posts.
-- [`@facebook/react-native`](https://github.com/facebook/react-native) - the Open Source; GitHub **repository** for React Native.
+## Estructura de Archivos
+
+```
+MatSurfer/
+├── App.tsx              # Componente principal con toda la lógica
+├── package.json         # Dependencias del proyecto
+├── tsconfig.json        # Configuración TypeScript
+├── metro.config.js      # Configuración Metro bundler
+├── android/             # Proyecto Android nativo
+├── ios/                 # Proyecto iOS nativo
+└── README.md           # Este archivo
+```
+
+## Dependencias Principales
+
+```json
+{
+  "react": "19.1.1",
+  "react-native": "0.82.1",
+  "react-native-safe-area-context": "^5.6.1"
+}
+```
+
+## Estilos Principales
+
+- **Tema**: Dark mode (#222 background, #fff text)
+- **Menú lateral**: 300px de ancho, lista scrollable
+- **Popup**: Modal centrado con overlay oscuro (z-index: 9999)
+- **Avatar**: Circular, 56x56 en lista, 100x100 en popup
+- **Checkboxes**: 20x20, azul cuando seleccionado (#2196F3)
+
+## Debugging
+
+### Logs de Desarrollo
+Los logs solo se muestran en modo desarrollo:
+
+```typescript
+if (nodeEnv === 'development') {
+  console.log('[DEBUG] popupVisible:', popupVisible, '| clasesAhoraRaw:', clasesAhoraRaw);
+}
+```
+
+### Variables de Debug
+- `NODE_ENV`: Detectado desde `globalThis.process.env.NODE_ENV`
+- `_fotoIndex`: Índice para rastrear fotos por orden original
+
+## Notas Técnicas
+
+- **Vinculación de fotos**: Se usa `_fotoIndex` para mantener correspondencia entre usuarios y array de fotos
+- **Overlay del popup**: Usa posicionamiento absoluto con dimensiones completas
+- **Manejo de errores**: Captura errores de red y respuestas inválidas de API
+- **TypeScript**: Configuración flexible, no estricta
+- **Gestión de estado**: Solo hooks de React (useState, useEffect)
+- **Sin navegación**: Aplicación de una sola pantalla
+- **Filtros en render**: Los filtros se calculan en tiempo real durante el render
+
+## Decisiones de Diseño
+
+1. **Mostrar todas las clases**: Para transparencia, todas las clases se muestran en el popup, aunque estén deshabilitadas
+2. **Selección automática**: Mejora UX al pre-seleccionar la primera opción disponible
+3. **Edad = 0 como acceso total**: Permite a administradores/coordinadores acceder a cualquier clase
+4. **Clases "ninguno" excluidas**: Evita confusión en la UI
+5. **Búsqueda persistente**: Facilita check-ins múltiples del mismo grupo
+6. **Validación en frontend**: Reduce llamadas innecesarias a la API
+
+## Mejoras Futuras / Pendientes
+
+- [ ] Implementar visualización estructurada de resultado `ondeck`
+- [ ] Agregar animaciones a transiciones de popup
+- [ ] Optimizar renders con React.memo si es necesario
+- [ ] Agregar feedback visual durante carga de check-in (spinner)
+- [ ] Implementar manejo de errores más robusto
+- [ ] Agregar tests unitarios para lógica de filtros
+- [ ] Considerar paginación si la lista de usuarios crece
+- [ ] Implementar modo offline con caché local
+
+## Comandos Útiles
+
+```bash
+# Instalar dependencias
+npm install
+
+# Ejecutar en Android
+npx react-native run-android
+
+# Ejecutar en iOS
+npx react-native run-ios
+
+# Limpiar caché
+npx react-native start --reset-cache
+```
+
+## Repositorio
+**GitHub**: https://github.com/rodopertuz/MatSurferCheckInV1.0.git
+
+---
+
+**Última actualización**: 4 de enero de 2026
