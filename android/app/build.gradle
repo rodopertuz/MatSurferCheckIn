@@ -77,9 +77,9 @@ android {
     buildToolsVersion rootProject.ext.buildToolsVersion
     compileSdk rootProject.ext.compileSdkVersion
 
-    namespace "com.holamundoapp"
+    namespace "com.matsurfer"
     defaultConfig {
-        applicationId "com.holamundoapp"
+    applicationId "com.matsurfer"
         minSdkVersion rootProject.ext.minSdkVersion
         targetSdkVersion rootProject.ext.targetSdkVersion
         versionCode 1

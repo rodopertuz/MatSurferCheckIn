@@ -1,4 +1,4 @@
-package com.holamundoapp
+package com.matsurfer
 
 import android.app.Application
 import com.facebook.react.PackageList
