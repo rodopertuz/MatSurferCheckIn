@@ -63,12 +63,10 @@ function AppContent() {
   }, [popupVisible, clasesAhoraRaw]);
   // Estado para el resultado de la consulta ondeck
   const [ondeckResult, setOndeckResult] = useState<any>(null);
-  const [ondeckLoading, setOndeckLoading] = useState(false);
   const [ondeckError, setOndeckError] = useState('');
 
   // Función para consultar la API con método GET y acción 'ondeck'
   const fetchOndeck = async () => {
-    setOndeckLoading(true);
     setOndeckError('');
     try {
       const response = await fetch('https://www.satorijiujitsu.com.co/api/api.php?action=ondeck', {
@@ -81,8 +79,6 @@ function AppContent() {
       setOndeckResult(data);
     } catch (err: any) {
       setOndeckError('Error al consultar la API: ' + (err.message || err));
-    } finally {
-      setOndeckLoading(false);
     }
   };
 
@@ -118,7 +114,7 @@ function AppContent() {
         }
         // Filtro de grupo de edad
         let claseParaGrupo = true;
-        if (!accesoTotal && claseActualObj.grupo) {
+        if (!accesoTotal && !esCoach && claseActualObj.grupo) {
           const grupoClase = claseActualObj.grupo.trim().toLowerCase();
           if (grupoEdad === 'adultos' && !grupoClase.includes('adult')) claseParaGrupo = false;
           if (grupoEdad === 'teens' && !grupoClase.includes('teen')) claseParaGrupo = false;
@@ -139,7 +135,7 @@ function AppContent() {
             accesoUsuario = clasesUsuario.some(c => c.trim().toLowerCase() === disciplina.toLowerCase());
           }
         }
-        // Solo habilitado si ambos filtros son true
+        // Solo habilitado si ambos filtros son true (coaches tienen acceso total)
         const disponible = claseParaGrupo && accesoUsuario;
         if (disponible) {
           opciones.push('actual');
@@ -159,9 +155,9 @@ function AppContent() {
             else if (selectedUsuario.edad >= 11) grupoEdad = 'teens';
             else grupoEdad = 'kids';
           }
-          // Determinar si la clase corresponde al grupo de edad
+          // Determinar si la clase corresponde al grupo de edad (coaches tienen acceso total)
           let claseParaGrupo = true;
-          if (clase.grupo) {
+          if (!esCoach && clase.grupo) {
             const grupoClase = clase.grupo.trim().toLowerCase();
             if (grupoEdad === 'adultos' && !grupoClase.includes('adult')) claseParaGrupo = false;
             if (grupoEdad === 'teens' && !grupoClase.includes('teen')) claseParaGrupo = false;
@@ -303,6 +299,31 @@ function AppContent() {
     fetchUsuarios();
   }, []);
 
+  // Verificar si es momento de ejecutar fetchUsuarios basado en la hora de la próxima clase
+  useEffect(() => {
+    const checkNextClassTime = () => {
+      if (clasesSiguientesArr.length > 0 && clasesSiguientesArr[0].start) {
+        const now = new Date();
+        const currentTime = `${now.getHours().toString().padStart(2, '0')}:${now.getMinutes().toString().padStart(2, '0')}`;
+        const nextClassStart = clasesSiguientesArr[0].start;
+        
+        // Comparar las horas en formato HH:MM
+        if (currentTime >= nextClassStart) {
+          console.log(`Hora actual (${currentTime}) >= hora de inicio de próxima clase (${nextClassStart}), actualizando usuarios...`);
+          fetchUsuarios();
+        }
+      }
+    };
+
+    // Verificar cada 30 segundos
+    const interval = setInterval(checkNextClassTime, 30000);
+    
+    // Verificar inmediatamente al cambiar las clases siguientes
+    checkNextClassTime();
+    
+    return () => clearInterval(interval);
+  }, [clasesSiguientesArr]);
+
   const onRetry = () => {
     fetchUsuarios();
   };
@@ -421,7 +442,7 @@ function AppContent() {
                 }
                 // Filtro de grupo de edad
                 let claseParaGrupo = true;
-                if (!accesoTotal && claseActualObj.grupo) {
+                if (!accesoTotal && !esCoach && claseActualObj.grupo) {
                   const grupoClase = claseActualObj.grupo.trim().toLowerCase();
                   if (grupoEdad === 'adultos' && !grupoClase.includes('adult')) claseParaGrupo = false;
                   if (grupoEdad === 'teens' && !grupoClase.includes('teen')) claseParaGrupo = false;
@@ -488,7 +509,7 @@ function AppContent() {
                     }
                     // Filtro de grupo de edad
                     let claseParaGrupo = true;
-                    if (!accesoTotal && clase.grupo) {
+                    if (!accesoTotal && !esCoach && clase.grupo) {
                       const grupoClase = clase.grupo.trim().toLowerCase();
                       if (grupoEdad === 'adultos' && !grupoClase.includes('adult')) claseParaGrupo = false;
                       if (grupoEdad === 'teens' && !grupoClase.includes('teen')) claseParaGrupo = false;
@@ -509,7 +530,7 @@ function AppContent() {
                         accesoUsuario = clasesUsuario.some(c => c.trim().toLowerCase() === disciplina.toLowerCase());
                       }
                     }
-                    // Solo habilitado si ambos filtros son true
+                    // Solo habilitado si ambos filtros son true (coaches tienen acceso total)
                     const disponible = claseParaGrupo && accesoUsuario;
                     return (
                       <TouchableOpacity
@@ -559,8 +580,14 @@ function AppContent() {
                   // Personalizada
                   if (selectedClases.includes('personalizada')) {
                     const now = new Date();
-                    const hora = now.toLocaleTimeString('es-CO', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
-                    clasesSeleccionadas.push({ tipo: 'personalizada', hora });
+                    const hora = now.toLocaleTimeString('es-CO', { hour: '2-digit', minute: '2-digit', hour12: false });
+                    clasesSeleccionadas.push({ 
+                      tipo: 'actual', 
+                      disciplina: 'Personalizada', 
+                      grupo: '', 
+                      start: hora, 
+                      end: '' 
+                    });
                   }
                   // Clase actual
                   if (selectedClases.includes('actual') && claseActualObj) {
@@ -600,9 +627,27 @@ function AppContent() {
                         clases: clasesSeleccionadas,
                       }),
                     });
-                    const result = await response.json();
+                    
+                    const responseText = await response.text();
+                    console.log('Respuesta de la API (texto):', responseText);
+                    
+                    let result;
+                    try {
+                      result = JSON.parse(responseText);
+                    } catch (parseError: any) {
+                      console.error('Error al parsear JSON:', parseError);
+                      console.error('Respuesta completa de la API:', responseText);
+                      setCheckinMessage(`Error: La API no devolvió un JSON válido. Ver consola para detalles.`);
+                      return;
+                    }
+                    
                     if (response.ok && result.success) {
-                      setCheckinMessage('Check-in realizado correctamente.');
+                      // Verificar si hay un mensaje de duplicado
+                      if (result.message && result.message.toLowerCase().includes('duplicado')) {
+                        setCheckinMessage('El usuario ya ha realizado Check-In para esta clase');
+                      } else {
+                        setCheckinMessage('Check-in realizado correctamente.');
+                      }
                       setTimeout(() => {
                         setPopupVisible(false);
                         setSelectedUsuario(null);
@@ -613,9 +658,10 @@ function AppContent() {
                     } else {
                       setCheckinMessage(result.error ? result.error : 'Error al realizar el check-in.');
                     }
-                  } catch (err) {
-                    setCheckinMessage('Error de red al realizar el check-in.');
-                    
+                  } catch (err: any) {
+                    const errorMsg = err.message || String(err);
+                    setCheckinMessage(`Error de red al realizar el check-in: ${errorMsg}`);
+                    console.error('Error completo en check-in:', err);
                   }
                 }}
               />
@@ -709,14 +755,52 @@ function AppContent() {
           </View>
           {/* Área principal: resultado de la consulta ondeck */}
           <View style={styles.mainContent}>
-            {ondeckLoading ? (
-              <Text style={{color: '#fff', fontSize: 16}}>Cargando...</Text>
-            ) : ondeckError ? (
+            {ondeckError ? (
               <Text style={{color: 'red', fontSize: 16}}>{ondeckError}</Text>
+            ) : ondeckResult && ondeckResult.ondeck && Array.isArray(ondeckResult.ondeck) && ondeckResult.ondeck.length > 0 ? (
+              <View style={{padding: 20, flexDirection: 'row', flexWrap: 'wrap', gap: 20}}>
+                {ondeckResult.ondeck.map((nombreTabla: string, idx: number) => {
+                  const usuario = usuarios.find(u => u.nombre_tabla === nombreTabla);
+                  if (!usuario) return null;
+                  
+                  const fotoUrl = fotos[usuarios.indexOf(usuario)] && fotos[usuarios.indexOf(usuario)].trim() !== '' ? fotos[usuarios.indexOf(usuario)] : null;
+                  let borderColor = '#444';
+                  if (usuario.estado === 'activo') borderColor = 'green';
+                  else if (usuario.estado === 'saldobajo') borderColor = 'yellow';
+                  else if (usuario.estado === 'pendiente') borderColor = 'orange';
+                  else if (usuario.estado === 'inactivo') borderColor = 'red';
+                  else if (usuario.estado === 'congelado') borderColor = '#4FC3F7';
+                  
+                  return (
+                    <View key={idx} style={{alignItems: 'center', width: 120}}>
+                      <View style={{
+                        width: 100,
+                        height: 100,
+                        borderRadius: 50,
+                        borderWidth: 3,
+                        borderColor: borderColor,
+                        overflow: 'hidden',
+                        backgroundColor: '#444',
+                        justifyContent: 'center',
+                        alignItems: 'center'
+                      }}>
+                        {fotoUrl ? (
+                          <Image
+                            source={{ uri: fotoUrl }}
+                            style={{width: '100%', height: '100%'}}
+                            resizeMode="cover"
+                          />
+                        ) : (
+                          <Text style={{color: '#fff', fontSize: 32}}>?</Text>
+                        )}
+                      </View>
+                      <Text style={{color: '#fff', fontSize: 14, marginTop: 8, textAlign: 'center'}}>{usuario.nombre}</Text>
+                    </View>
+                  );
+                })}
+              </View>
             ) : (
-              <Text style={{color: '#fff', fontSize: 14}}>
-                {ondeckResult ? JSON.stringify(ondeckResult, null, 2) : 'Sin datos de ondeck'}
-              </Text>
+              <Text style={{color: '#888', fontSize: 16, padding: 20}}>Sin usuarios en espera</Text>
             )}
           </View>
         </View>
