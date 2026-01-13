@@ -5,18 +5,20 @@
  * @format
  */
 
-import React, { useEffect, useState } from 'react';
-import { StatusBar, StyleSheet, useColorScheme, View, Text, FlatList, Button, Image, Linking, TouchableOpacity, RefreshControl, TextInput } from 'react-native';
+import React, { useEffect, useState, useRef } from 'react';
+import { StatusBar, StyleSheet, useColorScheme, View, Text, FlatList, Button, Image, Linking, TouchableOpacity, RefreshControl, TextInput, Keyboard, Animated, Dimensions } from 'react-native';
 import {
   SafeAreaProvider,
   useSafeAreaInsets,
 } from 'react-native-safe-area-context';
+import KeepAwake from '@sayem314/react-native-keep-awake';
 
 function App() {
   const isDarkMode = useColorScheme() === 'dark';
 
   return (
     <SafeAreaProvider>
+      <KeepAwake />
       <StatusBar hidden={true} />
       <AppContent />
     </SafeAreaProvider>
@@ -45,6 +47,9 @@ function AppContent() {
   const [clasesAhoraRaw, setClasesAhoraRaw] = React.useState<any>(null);
   const [popupVisible, setPopupVisible] = React.useState(false);
   const [showPendingWarning, setShowPendingWarning] = React.useState(false);
+  const [showInactiveWarning, setShowInactiveWarning] = React.useState(false);
+  const [screensaverActive, setScreensaverActive] = React.useState(false);
+  const inactivityTimer = useRef<number | null>(null);
 
   // --- COLOCAR LOS LOGS JUSTO ANTES DEL RETURN ---
 
@@ -65,6 +70,8 @@ function AppContent() {
   // Estado para el resultado de la consulta ondeck
   const [ondeckResult, setOndeckResult] = useState<any>(null);
   const [ondeckError, setOndeckError] = useState('');
+  const [prospectosOndeck, setProspectosOndeck] = useState<string[]>([]);
+  const [fotoProspecto, setFotoProspecto] = useState<string>('');
 
   // Función para consultar la API con método GET y acción 'ondeck'
   const fetchOndeck = async () => {
@@ -78,6 +85,17 @@ function AppContent() {
       });
       const data = await response.json();
       setOndeckResult(data);
+      // Guardar prospectos y foto de prospecto
+      if (data.prospectos_ondeck && Array.isArray(data.prospectos_ondeck)) {
+        setProspectosOndeck(data.prospectos_ondeck);
+      } else {
+        setProspectosOndeck([]);
+      }
+      if (data.foto_prospecto) {
+        setFotoProspecto(data.foto_prospecto);
+      } else {
+        setFotoProspecto('');
+      }
     } catch (err: any) {
       setOndeckError('Error al consultar la API: ' + (err.message || err));
     }
@@ -89,6 +107,30 @@ function AppContent() {
     const interval = setInterval(fetchOndeck, 5000);
     return () => clearInterval(interval);
   }, []);
+
+  // Detector de inactividad para screensaver
+  const resetInactivityTimer = React.useCallback(() => {
+    setScreensaverActive(false);
+    
+    if (inactivityTimer.current) {
+      clearTimeout(inactivityTimer.current);
+    }
+    
+    inactivityTimer.current = setTimeout(() => {
+      setScreensaverActive(true);
+      console.log('Screensaver activado');
+    }, 30000); // 30 segundos
+  }, []);
+
+  // Iniciar timer de inactividad solo una vez al montar
+  useEffect(() => {
+    resetInactivityTimer();
+    return () => {
+      if (inactivityTimer.current) {
+        clearTimeout(inactivityTimer.current);
+      }
+    };
+  }, []); // Sin dependencias para que solo se ejecute al montar
   const [selectedUsuario, setSelectedUsuario] = useState<Usuario | null>(null);
   const [selectedClases, setSelectedClases] = useState<string[]>([]);
 
@@ -298,11 +340,9 @@ function AppContent() {
 
   useEffect(() => {
     fetchUsuarios();
-  }, []);
-
-  // Verificar si es momento de ejecutar fetchUsuarios basado en la hora de la próxima clase
-  useEffect(() => {
-    const checkNextClassTime = () => {
+    
+    // Verificar cada 30 segundos si la próxima clase ya empezó
+    const interval = setInterval(() => {
       if (clasesSiguientesArr.length > 0 && clasesSiguientesArr[0].start) {
         const now = new Date();
         const currentTime = `${now.getHours().toString().padStart(2, '0')}:${now.getMinutes().toString().padStart(2, '0')}`;
@@ -314,16 +354,10 @@ function AppContent() {
           fetchUsuarios();
         }
       }
-    };
-
-    // Verificar cada 30 segundos
-    const interval = setInterval(checkNextClassTime, 30000);
-    
-    // Verificar inmediatamente al cambiar las clases siguientes
-    checkNextClassTime();
+    }, 30000);
     
     return () => clearInterval(interval);
-  }, [clasesSiguientesArr]);
+  }, []);
 
   const onRetry = () => {
     fetchUsuarios();
@@ -337,19 +371,31 @@ function AppContent() {
     </View>
   );
 
-  // Filtrado de usuarios por búsqueda parcial
-  // Filtrado de usuarios por búsqueda parcial y guardar índice original
+  // Función para normalizar texto eliminando acentos
+  const normalizeText = (text: string): string => {
+    return text.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase();
+  };
+
+  // Filtrado de usuarios por búsqueda parcial ignorando acentos
   const filteredUsuarios = usuarios
     .map((u, i) => ({ ...u, _fotoIndex: i }))
     .filter(u => {
       if (!search.trim()) return true;
-      const searchWords = search.trim().toLowerCase().split(/\s+/);
-      const nombre = u.nombre.toLowerCase();
+      const searchWords = normalizeText(search.trim()).split(/\s+/);
+      const nombre = normalizeText(u.nombre);
       return searchWords.every(word => nombre.includes(word));
     });
 
   return (
-    <View style={{flex: 1}}>
+    <View 
+      style={{flex: 1}}
+      onTouchStart={resetInactivityTimer}
+      onTouchMove={resetInactivityTimer}
+    >
+      {/* Screensaver */}
+      {screensaverActive && logoUrl && (
+        <ScreensaverComponent logoUrl={logoUrl} onTouch={resetInactivityTimer} />
+      )}
       {/* Overlay pop-up global */}
       {popupVisible && selectedUsuario && (
         <View
@@ -364,6 +410,7 @@ function AppContent() {
               setSelectedUsuario(null);
               setSelectedClases([]);
               setShowPendingWarning(false);
+              setShowInactiveWarning(false);
               // No borrar la casilla de búsqueda
               setCheckinMessage('');
             }}
@@ -377,6 +424,26 @@ function AppContent() {
               <TouchableOpacity
                 style={styles.pendingWarningButton}
                 onPress={() => setShowPendingWarning(false)}
+              >
+                <Text style={styles.pendingWarningButtonText}>ACEPTAR</Text>
+              </TouchableOpacity>
+            </View>
+          ) : showInactiveWarning && selectedUsuario.estado === 'inactivo' ? (
+            // Mensaje de advertencia para estado inactivo
+            <View style={styles.pendingWarningContainer}>
+              <Text style={styles.pendingWarningText}>
+                El estado actual de tu afiliación es <Text style={{fontWeight: 'bold'}}>INACTIVO</Text>, no es posible registrar tu ingreso, acércate al FRONTDESK para activar tu membresía
+              </Text>
+              <TouchableOpacity
+                style={styles.pendingWarningButton}
+                onPress={() => {
+                  setShowInactiveWarning(false);
+                  setPopupVisible(false);
+                  setSelectedUsuario(null);
+                  setSelectedClases([]);
+                  setSearch('');
+                  setCheckinMessage('');
+                }}
               >
                 <Text style={styles.pendingWarningButtonText}>ACEPTAR</Text>
               </TouchableOpacity>
@@ -580,6 +647,7 @@ function AppContent() {
                   setSelectedUsuario(null);
                   setSelectedClases([]);
                   setShowPendingWarning(false);
+                  setShowInactiveWarning(false);
                   setSearch('');
                   setCheckinMessage('');
                 }}
@@ -670,9 +738,10 @@ function AppContent() {
                         setSelectedUsuario(null);
                         setSelectedClases([]);
                         setShowPendingWarning(false);
+                        setShowInactiveWarning(false);
                         setSearch('');
                         setCheckinMessage('');
-                      }, 1500);
+                      }, 1000);
                     } else {
                       setCheckinMessage(result.error ? result.error : 'Error al realizar el check-in.');
                     }
@@ -707,6 +776,7 @@ function AppContent() {
           <FlatList
             data={filteredUsuarios}
             keyExtractor={(item) => item.id.toString()}
+            keyboardShouldPersistTaps='handled'
             renderItem={({ item }) => {
               const fotoUrl = fotos[item._fotoIndex] && fotos[item._fotoIndex].trim() !== '' ? fotos[item._fotoIndex] : null;
               let borderColor = '#444';
@@ -719,9 +789,19 @@ function AppContent() {
                 <TouchableOpacity
                   activeOpacity={0.7}
                   onPress={() => {
+                    Keyboard.dismiss();
                     setSelectedUsuario(item);
                     setPopupVisible(true);
-                    setShowPendingWarning(item.estado === 'pendiente');
+                    if (item.estado === 'pendiente') {
+                      setShowPendingWarning(true);
+                      setShowInactiveWarning(false);
+                    } else if (item.estado === 'inactivo') {
+                      setShowInactiveWarning(true);
+                      setShowPendingWarning(false);
+                    } else {
+                      setShowPendingWarning(false);
+                      setShowInactiveWarning(false);
+                    }
                   }}
                 >
                   <View style={[styles.menuItem, { borderColor }] }>
@@ -777,9 +857,51 @@ function AppContent() {
           <View style={styles.mainContent}>
             {ondeckError ? (
               <Text style={{color: 'red', fontSize: 16}}>{ondeckError}</Text>
-            ) : ondeckResult && ondeckResult.ondeck && Array.isArray(ondeckResult.ondeck) && ondeckResult.ondeck.length > 0 ? (
-              <View style={{padding: 20, flexDirection: 'row', flexWrap: 'wrap', gap: 20}}>
-                {ondeckResult.ondeck.map((nombreTabla: string, idx: number) => {
+            ) : (prospectosOndeck.length > 0 || (ondeckResult && ondeckResult.ondeck && Array.isArray(ondeckResult.ondeck) && ondeckResult.ondeck.length > 0)) ? (
+              <View style={{padding: 20}}>
+                {/* Conteo de alumnos ondeck */}
+                <View style={{marginBottom: 20, alignItems: 'center'}}>
+                  <Text style={{color: '#fff', fontSize: 18, fontWeight: 'bold'}}>
+                    ALUMNOS ON DECK: <Text style={{color: '#2196F3'}}>{(ondeckResult && ondeckResult.ondeck && Array.isArray(ondeckResult.ondeck) ? ondeckResult.ondeck.length : 0) + prospectosOndeck.length}</Text>
+                  </Text>
+                </View>
+                <View style={{flexDirection: 'row', flexWrap: 'wrap', gap: 20}}>
+                {/* Prospectos primero con borde dorado */}
+                {prospectosOndeck.map((nombreProspecto: string, idx: number) => (
+                  <View key={`prospecto-${idx}`} style={{
+                    alignItems: 'center',
+                    width: 115,
+                    backgroundColor: '#333',
+                    borderRadius: 15,
+                    borderWidth: 4,
+                    borderColor: '#FFD700',
+                    padding: 12,
+                  }}>
+                    <View style={{
+                      width: 80,
+                      height: 80,
+                      borderRadius: 40,
+                      overflow: 'hidden',
+                      backgroundColor: '#444',
+                      justifyContent: 'center',
+                      alignItems: 'center',
+                      marginBottom: 8
+                    }}>
+                      {fotoProspecto ? (
+                        <Image
+                          source={{ uri: fotoProspecto }}
+                          style={{width: '100%', height: '100%'}}
+                          resizeMode="cover"
+                        />
+                      ) : (
+                        <Text style={{color: '#fff', fontSize: 28}}>?</Text>
+                      )}
+                    </View>
+                    <Text style={{color: '#FFD700', fontSize: 13, fontWeight: 'bold', textAlign: 'center'}}>{nombreProspecto}</Text>
+                  </View>
+                ))}
+                {/* Usuarios normales después */}
+                {ondeckResult && ondeckResult.ondeck && Array.isArray(ondeckResult.ondeck) && ondeckResult.ondeck.map((nombreTabla: string, idx: number) => {
                   const usuario = usuarios.find(u => u.nombre_tabla === nombreTabla);
                   if (!usuario) return null;
                   
@@ -792,7 +914,7 @@ function AppContent() {
                   else if (usuario.estado === 'congelado') borderColor = '#4FC3F7';
                   
                   return (
-                    <View key={idx} style={{alignItems: 'center', width: 120}}>
+                    <View key={`usuario-${idx}`} style={{alignItems: 'center', width: 120}}>
                       <View style={{
                         width: 100,
                         height: 100,
@@ -818,6 +940,7 @@ function AppContent() {
                     </View>
                   );
                 })}
+              </View>
               </View>
             ) : (
               <Text style={{color: '#888', fontSize: 16, padding: 20}}>Sin usuarios en espera</Text>
@@ -1053,5 +1176,75 @@ const styles = StyleSheet.create({
     fontWeight: 'bold',
   },
 });
+
+// Componente de screensaver con logo flotante
+function ScreensaverComponent({ logoUrl, onTouch }: { logoUrl: string; onTouch: () => void }) {
+  const { width, height } = Dimensions.get('window');
+  const logoWidth = 240;
+  const logoHeight = 160;
+  const position = useRef(new Animated.ValueXY({ x: Math.random() * (width - logoWidth), y: Math.random() * (height - logoHeight) })).current;
+  const velocity = useRef({ x: (Math.random() - 0.5) * 6, y: (Math.random() - 0.5) * 6 });
+
+  useEffect(() => {
+    const currentPos = { x: Math.random() * (width - logoWidth), y: Math.random() * (height - logoHeight) };
+    const animate = () => {
+      const interval = setInterval(() => {
+        currentPos.x += velocity.current.x;
+        currentPos.y += velocity.current.y;
+
+        // Rebotar en los bordes
+        if (currentPos.x <= 0 || currentPos.x >= width - logoWidth) {
+          velocity.current.x *= -1;
+          currentPos.x = Math.max(0, Math.min(width - logoWidth, currentPos.x));
+        }
+        if (currentPos.y <= 0 || currentPos.y >= height - logoHeight) {
+          velocity.current.y *= -1;
+          currentPos.y = Math.max(0, Math.min(height - logoHeight, currentPos.y));
+        }
+
+        position.setValue({ x: currentPos.x, y: currentPos.y });
+      }, 16);
+
+      return () => clearInterval(interval);
+    };
+
+    const cleanup = animate();
+    return cleanup;
+  }, [position, width, height, logoWidth, logoHeight]);
+
+  return (
+    <TouchableOpacity 
+      style={{
+        position: 'absolute',
+        top: 0,
+        left: 0,
+        right: 0,
+        bottom: 0,
+        width: '100%',
+        height: '100%',
+        backgroundColor: '#000',
+        zIndex: 10000,
+      }}
+      activeOpacity={1}
+      onPress={onTouch}
+    >
+      <Animated.View
+        style={{
+          position: 'absolute',
+          left: position.x,
+          top: position.y,
+          width: logoWidth,
+          height: logoHeight,
+        }}
+      >
+        <Image 
+          source={{ uri: logoUrl }} 
+          style={{ width: logoWidth, height: logoHeight }} 
+          resizeMode="contain"
+        />
+      </Animated.View>
+    </TouchableOpacity>
+  );
+}
 
 export default App;
