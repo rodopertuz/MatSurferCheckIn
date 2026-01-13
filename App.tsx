@@ -44,6 +44,7 @@ function AppContent() {
   // Declarar clasesAhoraRaw y setClasesAhoraRaw al inicio
   const [clasesAhoraRaw, setClasesAhoraRaw] = React.useState<any>(null);
   const [popupVisible, setPopupVisible] = React.useState(false);
+  const [showPendingWarning, setShowPendingWarning] = React.useState(false);
 
   // --- COLOCAR LOS LOGS JUSTO ANTES DEL RETURN ---
 
@@ -362,10 +363,25 @@ function AppContent() {
               setPopupVisible(false);
               setSelectedUsuario(null);
               setSelectedClases([]);
+              setShowPendingWarning(false);
               // No borrar la casilla de búsqueda
               setCheckinMessage('');
             }}
           />
+          {showPendingWarning && selectedUsuario.estado === 'pendiente' ? (
+            // Mensaje de advertencia para estado pendiente
+            <View style={styles.pendingWarningContainer}>
+              <Text style={styles.pendingWarningText}>
+                El estado actual de tu afiliación es <Text style={{fontWeight: 'bold'}}>PENDIENTE</Text>, acércate al FrontDesk para renovar o actualizar tu membresía
+              </Text>
+              <TouchableOpacity
+                style={styles.pendingWarningButton}
+                onPress={() => setShowPendingWarning(false)}
+              >
+                <Text style={styles.pendingWarningButtonText}>ACEPTAR</Text>
+              </TouchableOpacity>
+            </View>
+          ) : (
           <View style={styles.checkInAlumnoActual}>
             {checkinMessage ? (
               <Text style={{color: checkinMessage.includes('correctamente') ? 'green' : 'red', marginBottom: 8, fontWeight: 'bold'}}>{checkinMessage}</Text>
@@ -563,6 +579,7 @@ function AppContent() {
                   setPopupVisible(false);
                   setSelectedUsuario(null);
                   setSelectedClases([]);
+                  setShowPendingWarning(false);
                   setSearch('');
                   setCheckinMessage('');
                 }}
@@ -652,6 +669,7 @@ function AppContent() {
                         setPopupVisible(false);
                         setSelectedUsuario(null);
                         setSelectedClases([]);
+                        setShowPendingWarning(false);
                         setSearch('');
                         setCheckinMessage('');
                       }, 1500);
@@ -667,6 +685,7 @@ function AppContent() {
               />
             </View>
           </View>
+          )}
         </View>
       )}
       {/* Layout principal */}
@@ -702,6 +721,7 @@ function AppContent() {
                   onPress={() => {
                     setSelectedUsuario(item);
                     setPopupVisible(true);
+                    setShowPendingWarning(item.estado === 'pendiente');
                   }}
                 >
                   <View style={[styles.menuItem, { borderColor }] }>
@@ -1006,6 +1026,31 @@ const styles = StyleSheet.create({
     color: '#fff',
     fontSize: 18,
     fontWeight: '500',
+  },
+  pendingWarningContainer: {
+    width: 320,
+    backgroundColor: '#d32f2f',
+    borderRadius: 5,
+    padding: 24,
+    alignItems: 'center',
+  },
+  pendingWarningText: {
+    color: '#fff',
+    fontSize: 16,
+    textAlign: 'center',
+    marginBottom: 20,
+    lineHeight: 24,
+  },
+  pendingWarningButton: {
+    backgroundColor: '#fff',
+    paddingVertical: 12,
+    paddingHorizontal: 40,
+    borderRadius: 5,
+  },
+  pendingWarningButtonText: {
+    color: '#d32f2f',
+    fontSize: 16,
+    fontWeight: 'bold',
   },
 });
 
