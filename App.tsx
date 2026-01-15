@@ -6,19 +6,17 @@
  */
 
 import React, { useEffect, useState, useRef } from 'react';
-import { StatusBar, StyleSheet, useColorScheme, View, Text, FlatList, Button, Image, Linking, TouchableOpacity, RefreshControl, TextInput, Keyboard, Animated, Dimensions } from 'react-native';
+import { StatusBar, StyleSheet, useColorScheme, View, Text, FlatList, Button, Image, Linking, TouchableOpacity, RefreshControl, TextInput, Keyboard, Animated, Dimensions, ScrollView, ActivityIndicator } from 'react-native';
 import {
   SafeAreaProvider,
   useSafeAreaInsets,
 } from 'react-native-safe-area-context';
-import KeepAwake from '@sayem314/react-native-keep-awake';
 
 function App() {
   const isDarkMode = useColorScheme() === 'dark';
 
   return (
     <SafeAreaProvider>
-      <KeepAwake />
       <StatusBar hidden={true} />
       <AppContent />
     </SafeAreaProvider>
@@ -46,6 +44,7 @@ function AppContent() {
   // Declarar clasesAhoraRaw y setClasesAhoraRaw al inicio
   const [clasesAhoraRaw, setClasesAhoraRaw] = React.useState<any>(null);
   const [popupVisible, setPopupVisible] = React.useState(false);
+  const [isCheckingIn, setIsCheckingIn] = React.useState(false);
   const [showPendingWarning, setShowPendingWarning] = React.useState(false);
   const [showInactiveWarning, setShowInactiveWarning] = React.useState(false);
   const [screensaverActive, setScreensaverActive] = React.useState(false);
@@ -71,6 +70,7 @@ function AppContent() {
   const [ondeckResult, setOndeckResult] = useState<any>(null);
   const [ondeckError, setOndeckError] = useState('');
   const [prospectosOndeck, setProspectosOndeck] = useState<string[]>([]);
+  const [personalizadasOndeck, setPersonalizadasOndeck] = useState<string[]>([]);
   const [fotoProspecto, setFotoProspecto] = useState<string>('');
 
   // Función para consultar la API con método GET y acción 'ondeck'
@@ -91,10 +91,22 @@ function AppContent() {
       } else {
         setProspectosOndeck([]);
       }
+      // Guardar personalizadas ondeck
+      if (data.personalizadas_ondeck && Array.isArray(data.personalizadas_ondeck)) {
+        setPersonalizadasOndeck(data.personalizadas_ondeck);
+      } else {
+        setPersonalizadasOndeck([]);
+      }
       if (data.foto_prospecto) {
         setFotoProspecto(data.foto_prospecto);
       } else {
         setFotoProspecto('');
+      }
+      
+      // Detectar cambios pendientes y actualizar usuarios
+      if (data.cambios_pendientes === true) {
+        console.log('Cambios pendientes detectados, actualizando usuarios...');
+        fetchUsuarios();
       }
     } catch (err: any) {
       setOndeckError('Error al consultar la API: ' + (err.message || err));
@@ -104,9 +116,14 @@ function AppContent() {
   // Consultar ondeck al montar el componente y luego cada 5 segundos
   useEffect(() => {
     fetchOndeck();
-    const interval = setInterval(fetchOndeck, 5000);
+    const interval = setInterval(() => {
+      // Solo ejecutar si el popup no está visible
+      if (!popupVisible) {
+        fetchOndeck();
+      }
+    }, 5000);
     return () => clearInterval(interval);
-  }, []);
+  }, [popupVisible]);
 
   // Detector de inactividad para screensaver
   const resetInactivityTimer = React.useCallback(() => {
@@ -252,7 +269,30 @@ function AppContent() {
   // (esto solo es ejemplo, puedes usarlo donde lo necesites en la app)
   // const clasesDisponiblesPorUsuario = usuarios.map(u => u.clases_disponibles || []);
   const [search, setSearch] = useState('');
+  const searchInputRef = useRef<TextInput>(null);
+  const searchTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [refreshing, setRefreshing] = useState(false);
+
+  // Temporizador para limpiar búsqueda automáticamente
+  useEffect(() => {
+    if (search.trim()) {
+      // Cancelar temporizador anterior si existe
+      if (searchTimerRef.current) {
+        clearTimeout(searchTimerRef.current);
+      }
+      // Iniciar nuevo temporizador (10 segundos)
+      searchTimerRef.current = setTimeout(() => {
+        setSearch('');
+        Keyboard.dismiss();
+      }, 10000);
+    }
+    return () => {
+      if (searchTimerRef.current) {
+        clearTimeout(searchTimerRef.current);
+      }
+    };
+  }, [search]);
+
   const onRefresh = () => {
     setRefreshing(true);
     fetchUsuarios();
@@ -338,20 +378,50 @@ function AppContent() {
       });
   };
 
+  // Estado para detectar cambio de día
+  const lastCheckDayRef = useRef<number>(new Date().getDate());
+  const claseActualRef = useRef<{disciplina?: string, grupo?: string, start?: string, end?: string} | null>(null);
+  const clasesSiguientesRef = useRef<Array<{disciplina?: string, grupo?: string, start?: string, end?: string}>>([]);
+
+  // Actualizar referencias cuando cambien los valores
+  useEffect(() => {
+    claseActualRef.current = claseActualObj;
+    clasesSiguientesRef.current = clasesSiguientesArr;
+  }, [claseActualObj, clasesSiguientesArr]);
+
   useEffect(() => {
     fetchUsuarios();
     
-    // Verificar cada 30 segundos si la próxima clase ya empezó
+    // Verificar cada 30 segundos si hay cambios en las clases
     const interval = setInterval(() => {
-      if (clasesSiguientesArr.length > 0 && clasesSiguientesArr[0].start) {
-        const now = new Date();
-        const currentTime = `${now.getHours().toString().padStart(2, '0')}:${now.getMinutes().toString().padStart(2, '0')}`;
-        const nextClassStart = clasesSiguientesArr[0].start;
-        
-        // Comparar las horas en formato HH:MM
+      const now = new Date();
+      const currentTime = `${now.getHours().toString().padStart(2, '0')}:${now.getMinutes().toString().padStart(2, '0')}`;
+      const currentDay = now.getDate();
+      
+      // Verificar si cambió el día
+      if (currentDay !== lastCheckDayRef.current) {
+        console.log(`Cambio de día detectado (${lastCheckDayRef.current} -> ${currentDay}), actualizando usuarios...`);
+        lastCheckDayRef.current = currentDay;
+        fetchUsuarios();
+        return;
+      }
+      
+      // Verificar si la clase actual terminó
+      if (claseActualRef.current && claseActualRef.current.end) {
+        if (currentTime >= claseActualRef.current.end) {
+          console.log(`Hora actual (${currentTime}) >= hora de fin de clase actual (${claseActualRef.current.end}), actualizando usuarios...`);
+          fetchUsuarios();
+          return;
+        }
+      }
+      
+      // Verificar si la próxima clase ya empezó
+      if (clasesSiguientesRef.current.length > 0 && clasesSiguientesRef.current[0].start) {
+        const nextClassStart = clasesSiguientesRef.current[0].start;
         if (currentTime >= nextClassStart) {
           console.log(`Hora actual (${currentTime}) >= hora de inicio de próxima clase (${nextClassStart}), actualizando usuarios...`);
           fetchUsuarios();
+          return;
         }
       }
     }, 30000);
@@ -450,9 +520,6 @@ function AppContent() {
             </View>
           ) : (
           <View style={styles.checkInAlumnoActual}>
-            {checkinMessage ? (
-              <Text style={{color: checkinMessage.includes('correctamente') ? 'green' : 'red', marginBottom: 8, fontWeight: 'bold'}}>{checkinMessage}</Text>
-            ) : null}
             {(() => {
               let fotoUrl = null;
               if (selectedUsuario && typeof selectedUsuario._fotoIndex === 'number') {
@@ -482,7 +549,17 @@ function AppContent() {
               )}
             </Text>
             <Text style={styles.popupEstado}>Estado: {selectedUsuario.estado}</Text>
-            {/* Opciones de selección de clases */}
+            {/* Mostrar loading durante check-in, mensaje después, o listado de clases por defecto */}
+            {isCheckingIn ? (
+              <View style={{marginVertical: 30, alignItems: 'center'}}>
+                <ActivityIndicator size="large" color="#2196F3" />
+                <Text style={{color: '#888', marginTop: 10}}>Procesando check-in...</Text>
+              </View>
+            ) : checkinMessage ? (
+              <View style={{marginVertical: 30, alignItems: 'center'}}>
+                <Text style={{color: checkinMessage.includes('correctamente') ? 'green' : 'red', fontSize: 16, fontWeight: 'bold', textAlign: 'center'}}>{checkinMessage}</Text>
+              </View>
+            ) : (
             <View style={styles.popupClasesList}>
               {/* Opción Personalizada solo si no es coach */}
               {!(selectedUsuario?.roles && selectedUsuario.roles.toLowerCase().includes('coach')) && (
@@ -638,6 +715,7 @@ function AppContent() {
                     );
                   })}
             </View>
+            )}
             <View style={styles.popupButtons}>
               <Button
                 title="Cancelar"
@@ -650,16 +728,22 @@ function AppContent() {
                   setShowInactiveWarning(false);
                   setSearch('');
                   setCheckinMessage('');
+                  setIsCheckingIn(false);
+                  // Consultar ondeck después de cancelar
+                  fetchOndeck();
                 }}
               />
               <Button
                 title="Aceptar"
                 color="#2196F3"
+                disabled={isCheckingIn}
                 onPress={async () => {
                   if (!selectedUsuario || selectedClases.length === 0) {
                     setCheckinMessage('Debes seleccionar al menos una clase.');
                     return;
                   }
+                  setIsCheckingIn(true);
+                  setCheckinMessage('');
                   // Construir el array de clases seleccionadas con información completa
                   let clasesSeleccionadas: any[] = [];
                   // Personalizada
@@ -727,6 +811,7 @@ function AppContent() {
                     }
                     
                     if (response.ok && result.success) {
+                      setIsCheckingIn(false);
                       // Verificar si hay un mensaje de duplicado
                       if (result.message && result.message.toLowerCase().includes('duplicado')) {
                         setCheckinMessage('El usuario ya ha realizado Check-In para esta clase');
@@ -741,11 +826,16 @@ function AppContent() {
                         setShowInactiveWarning(false);
                         setSearch('');
                         setCheckinMessage('');
+                        setIsCheckingIn(false);
+                        // Consultar ondeck después del check-in exitoso
+                        fetchOndeck();
                       }, 1000);
                     } else {
+                      setIsCheckingIn(false);
                       setCheckinMessage(result.error ? result.error : 'Error al realizar el check-in.');
                     }
                   } catch (err: any) {
+                    setIsCheckingIn(false);
                     const errorMsg = err.message || String(err);
                     setCheckinMessage(`Error de red al realizar el check-in: ${errorMsg}`);
                     console.error('Error completo en check-in:', err);
@@ -766,13 +856,37 @@ function AppContent() {
               <Image source={{ uri: logoUrl }} style={styles.logoImg} resizeMode="contain" />
             </View>
           ) : null}
-          <TextInput
-            style={styles.searchInput}
-            placeholder="Buscar nombre..."
-            placeholderTextColor="#888"
-            value={search}
-            onChangeText={setSearch}
-          />
+          <View style={styles.searchContainer}>
+            <TextInput
+              ref={searchInputRef}
+              style={styles.searchInput}
+              placeholder="Buscar nombre..."
+              placeholderTextColor="#888"
+              value={search}
+              onChangeText={setSearch}
+              onFocus={() => {
+                // Iniciar temporizador al enfocar
+                if (searchTimerRef.current) {
+                  clearTimeout(searchTimerRef.current);
+                }
+                searchTimerRef.current = setTimeout(() => {
+                  setSearch('');
+                  Keyboard.dismiss();
+                }, 10000);
+              }}
+            />
+            {search.length > 0 && (
+              <TouchableOpacity
+                style={styles.clearButton}
+                onPress={() => {
+                  setSearch('');
+                  searchInputRef.current?.focus();
+                }}
+              >
+                <Text style={styles.clearButtonText}>✕</Text>
+              </TouchableOpacity>
+            )}
+          </View>
           <FlatList
             data={filteredUsuarios}
             keyExtractor={(item) => item.id.toString()}
@@ -854,11 +968,58 @@ function AppContent() {
             </View>
           </View>
           {/* Área principal: resultado de la consulta ondeck */}
-          <View style={styles.mainContent}>
+          <ScrollView style={styles.mainContent}>
             {ondeckError ? (
               <Text style={{color: 'red', fontSize: 16}}>{ondeckError}</Text>
-            ) : (prospectosOndeck.length > 0 || (ondeckResult && ondeckResult.ondeck && Array.isArray(ondeckResult.ondeck) && ondeckResult.ondeck.length > 0)) ? (
+            ) : (personalizadasOndeck.length > 0 || prospectosOndeck.length > 0 || (ondeckResult && ondeckResult.ondeck && Array.isArray(ondeckResult.ondeck) && ondeckResult.ondeck.length > 0)) ? (
               <View style={{padding: 20}}>
+                {/* Usuarios con clases personalizadas */}
+                {personalizadasOndeck.length > 0 && (
+                  <>
+                    <View style={{marginBottom: 20}}>
+                      <Text style={{color: '#fff', fontSize: 18, fontWeight: 'bold', marginBottom: 15, textAlign: 'center'}}>
+                        CLASES PERSONALIZADAS
+                      </Text>
+                      <View style={{flexDirection: 'row', flexWrap: 'wrap', gap: 20, justifyContent: 'center'}}>
+                        {personalizadasOndeck.map((nombreTabla: string, idx: number) => {
+                          const usuario = usuarios.find(u => u.nombre_tabla === nombreTabla);
+                          if (!usuario) return null;
+                          
+                          const fotoUrl = fotos[usuarios.indexOf(usuario)] && fotos[usuarios.indexOf(usuario)].trim() !== '' ? fotos[usuarios.indexOf(usuario)] : null;
+                          
+                          return (
+                            <View key={`personalizada-${idx}`} style={{alignItems: 'center', width: 120}}>
+                              <View style={{
+                                width: 100,
+                                height: 100,
+                                borderRadius: 50,
+                                borderWidth: 3,
+                                borderColor: '#9C27B0',
+                                overflow: 'hidden',
+                                backgroundColor: '#444',
+                                justifyContent: 'center',
+                                alignItems: 'center'
+                              }}>
+                                {fotoUrl ? (
+                                  <Image
+                                    source={{ uri: fotoUrl }}
+                                    style={{width: '100%', height: '100%'}}
+                                    resizeMode="cover"
+                                  />
+                                ) : (
+                                  <Text style={{color: '#fff', fontSize: 32}}>?</Text>
+                                )}
+                              </View>
+                              <Text style={{color: '#fff', fontSize: 14, marginTop: 8, textAlign: 'center'}}>{usuario.nombre}</Text>
+                            </View>
+                          );
+                        })}
+                      </View>
+                    </View>
+                    {/* Barra horizontal separadora */}
+                    <View style={{height: 2, backgroundColor: '#444', marginVertical: 20}} />
+                  </>
+                )}
                 {/* Conteo de alumnos ondeck */}
                 <View style={{marginBottom: 20, alignItems: 'center'}}>
                   <Text style={{color: '#fff', fontSize: 18, fontWeight: 'bold'}}>
@@ -945,7 +1106,7 @@ function AppContent() {
             ) : (
               <Text style={{color: '#888', fontSize: 16, padding: 20}}>Sin usuarios en espera</Text>
             )}
-          </View>
+          </ScrollView>
         </View>
       </View>
     </View>
@@ -1043,17 +1204,39 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     flexDirection: 'column',
   },
+  searchContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginHorizontal: 12,
+    marginBottom: 8,
+    position: 'relative',
+  },
   searchInput: {
+    flex: 1,
     backgroundColor: '#333',
     color: '#fff',
     borderRadius: 5,
-    marginHorizontal: 12,
-    marginBottom: 8,
     paddingHorizontal: 12,
+    paddingRight: 40,
     paddingVertical: 8,
     fontSize: 14,
     borderWidth: 1,
     borderColor: '#444',
+  },
+  clearButton: {
+    position: 'absolute',
+    right: 8,
+    width: 28,
+    height: 28,
+    borderRadius: 14,
+    backgroundColor: '#555',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  clearButtonText: {
+    color: '#fff',
+    fontSize: 18,
+    fontWeight: 'bold',
   },
   menuLateral: {
     position: 'absolute',
