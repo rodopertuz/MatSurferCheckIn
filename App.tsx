@@ -50,27 +50,15 @@ function AppContent() {
   const [screensaverActive, setScreensaverActive] = React.useState(false);
   const inactivityTimer = useRef<number | null>(null);
 
-  // --- COLOCAR LOS LOGS JUSTO ANTES DEL RETURN ---
-
   React.useEffect(() => {
     const nodeEnv = typeof (globalThis as any).process !== 'undefined' && (globalThis as any).process.env && (globalThis as any).process.env.NODE_ENV ? (globalThis as any).process.env.NODE_ENV : 'unknown';
-    console.log('NODE_ENV:', nodeEnv);
-  }, []);
-
-  React.useEffect(() => {
-    const nodeEnv = typeof (globalThis as any).process !== 'undefined' && (globalThis as any).process.env && (globalThis as any).process.env.NODE_ENV ? (globalThis as any).process.env.NODE_ENV : 'unknown';
-    if (nodeEnv === 'development') {
-      console.log('[DEBUG] popupVisible:', popupVisible, '| clasesAhoraRaw:', clasesAhoraRaw);
-    }
-    if (nodeEnv === 'development' && popupVisible && clasesAhoraRaw) {
-      console.log('[DEBUG] clases_ahora (solo cuando popupVisible):', clasesAhoraRaw);
-    }
   }, [popupVisible, clasesAhoraRaw]);
   // Estado para el resultado de la consulta ondeck
   const [ondeckResult, setOndeckResult] = useState<any>(null);
   const [ondeckError, setOndeckError] = useState('');
   const [prospectosOndeck, setProspectosOndeck] = useState<string[]>([]);
   const [personalizadasOndeck, setPersonalizadasOndeck] = useState<string[]>([]);
+  const [ondeckProximas, setOndeckProximas] = useState<string[]>([]);
   const [fotoProspecto, setFotoProspecto] = useState<string>('');
 
   // Función para consultar la API con método GET y acción 'ondeck'
@@ -97,6 +85,12 @@ function AppContent() {
       } else {
         setPersonalizadasOndeck([]);
       }
+      // Guardar ondeck próximas
+      if (data.ondeck_proximas && Array.isArray(data.ondeck_proximas)) {
+        setOndeckProximas(data.ondeck_proximas);
+      } else {
+        setOndeckProximas([]);
+      }
       if (data.foto_prospecto) {
         setFotoProspecto(data.foto_prospecto);
       } else {
@@ -105,7 +99,6 @@ function AppContent() {
       
       // Detectar cambios pendientes y actualizar usuarios
       if (data.cambios_pendientes === true) {
-        console.log('Cambios pendientes detectados, actualizando usuarios...');
         fetchUsuarios();
       }
     } catch (err: any) {
@@ -135,7 +128,6 @@ function AppContent() {
     
     inactivityTimer.current = setTimeout(() => {
       setScreensaverActive(true);
-      console.log('Screensaver activado');
     }, 30000); // 30 segundos
   }, []);
 
@@ -150,6 +142,16 @@ function AppContent() {
   }, []); // Sin dependencias para que solo se ejecute al montar
   const [selectedUsuario, setSelectedUsuario] = useState<Usuario | null>(null);
   const [selectedClases, setSelectedClases] = useState<string[]>([]);
+  const [clasesAhora, setClasesAhora] = useState<{ actual: string; proxima: string }>({ actual: '', proxima: '' });
+  const [checkinMessage, setCheckinMessage] = useState<string>('');
+  
+  // Manejar la nueva estructura de clases_ahora
+  const claseActualObj: {disciplina?: string, grupo?: string, start?: string, end?: string, grupos_permitidos?: string[]} | null =
+    clasesAhoraRaw && clasesAhoraRaw.actual && typeof clasesAhoraRaw.actual === 'object' && !Array.isArray(clasesAhoraRaw.actual)
+      ? clasesAhoraRaw.actual
+      : null;
+  const clasesSiguientesArr: Array<{disciplina?: string, grupo?: string, start?: string, end?: string, grupos_permitidos?: string[]}> =
+    clasesAhoraRaw && Array.isArray(clasesAhoraRaw.proximas) ? clasesAhoraRaw.proximas : [];
 
   // Selección automática de la primera clase disponible al abrir el popup
   React.useEffect(() => {
@@ -158,6 +160,7 @@ function AppContent() {
       // Clase actual con ambos filtros
       if (claseActualObj && claseActualObj.disciplina && claseActualObj.disciplina.trim().toLowerCase() !== 'ninguno') {
         const esCoach = selectedUsuario?.roles && selectedUsuario.roles.toLowerCase().includes('coach');
+        const esStaff = selectedUsuario?.roles && (selectedUsuario.roles.toLowerCase().includes('admin') || selectedUsuario.roles.toLowerCase().includes('superadmin') || selectedUsuario.roles.toLowerCase().includes('staff'));
         let grupoEdad = '';
         let accesoTotal = false;
         if (
@@ -172,17 +175,40 @@ function AppContent() {
           else if (selectedUsuario.edad >= 11) grupoEdad = 'teens';
           else grupoEdad = 'kids';
         }
-        // Filtro de grupo de edad
+        // Filtro de grupo de edad usando grupos_permitidos (con fallback a grupo)
         let claseParaGrupo = true;
-        if (!accesoTotal && !esCoach && claseActualObj.grupo) {
-          const grupoClase = claseActualObj.grupo.trim().toLowerCase();
-          if (grupoEdad === 'adultos' && !grupoClase.includes('adult')) claseParaGrupo = false;
-          if (grupoEdad === 'teens' && !grupoClase.includes('teen')) claseParaGrupo = false;
-          if (grupoEdad === 'kids' && !grupoClase.includes('kid')) claseParaGrupo = false;
+        if (!accesoTotal && !esCoach) {
+          const gruposPermitidos = claseActualObj.grupos_permitidos && claseActualObj.grupos_permitidos.length > 0 
+            ? claseActualObj.grupos_permitidos.map((g: string) => g.toLowerCase())
+            : [];
+          const grupoClase = claseActualObj.grupo ? claseActualObj.grupo.trim().toLowerCase() : '';
+          
+          // Si grupos_permitidos está vacío, usar el campo grupo como fallback
+          if (gruposPermitidos.length === 0) {
+            if (esStaff && grupoClase.includes('adult')) {
+              claseParaGrupo = true;
+            } else {
+              if (grupoEdad === 'adultos' && !grupoClase.includes('adult')) claseParaGrupo = false;
+              if (grupoEdad === 'teens' && !grupoClase.includes('teen')) claseParaGrupo = false;
+              if (grupoEdad === 'kids' && !grupoClase.includes('kid')) claseParaGrupo = false;
+            }
+          } else {
+            // Usar grupos_permitidos (soporta español e inglés)
+            if (esStaff && (gruposPermitidos.includes('adults') || gruposPermitidos.includes('adultos'))) {
+              claseParaGrupo = true;
+            } else {
+              if (grupoEdad === 'adultos' && !gruposPermitidos.includes('adults') && !gruposPermitidos.includes('adultos')) claseParaGrupo = false;
+              if (grupoEdad === 'teens' && !gruposPermitidos.includes('teens')) claseParaGrupo = false;
+              if (grupoEdad === 'kids' && !gruposPermitidos.includes('kids') && !gruposPermitidos.includes('niños')) claseParaGrupo = false;
+            }
+          }
         }
         // Filtro de acceso por usuario
         let accesoUsuario = false;
         if (esCoach || accesoTotal) {
+          accesoUsuario = true;
+        } else if (esStaff && claseActualObj.grupo && claseActualObj.grupo.toLowerCase().includes('adult')) {
+          // Staff tiene acceso a todas las clases de adultos
           accesoUsuario = true;
         } else {
           const esTiquetera = selectedUsuario?.plan?.toLowerCase().includes('tiquetera');
@@ -207,6 +233,7 @@ function AppContent() {
           const clase = clasesSiguientesArr[idx];
           if (!clase.disciplina || clase.disciplina.trim().toLowerCase() === 'ninguno') continue;
           const esCoach = selectedUsuario?.roles && selectedUsuario.roles.toLowerCase().includes('coach');
+          const esStaff = selectedUsuario?.roles && (selectedUsuario.roles.toLowerCase().includes('admin') || selectedUsuario.roles.toLowerCase().includes('superadmin') || selectedUsuario.roles.toLowerCase().includes('staff'));
           let disponible = false;
           // Filtrar por grupo de edad
           let grupoEdad = '';
@@ -217,14 +244,37 @@ function AppContent() {
           }
           // Determinar si la clase corresponde al grupo de edad (coaches tienen acceso total)
           let claseParaGrupo = true;
-          if (!esCoach && clase.grupo) {
-            const grupoClase = clase.grupo.trim().toLowerCase();
-            if (grupoEdad === 'adultos' && !grupoClase.includes('adult')) claseParaGrupo = false;
-            if (grupoEdad === 'teens' && !grupoClase.includes('teen')) claseParaGrupo = false;
-            if (grupoEdad === 'kids' && !grupoClase.includes('kid')) claseParaGrupo = false;
+          if (!esCoach) {
+            const gruposPermitidos = clase.grupos_permitidos && clase.grupos_permitidos.length > 0 
+              ? clase.grupos_permitidos.map((g: string) => g.toLowerCase())
+              : [];
+            const grupoClase = clase.grupo ? clase.grupo.trim().toLowerCase() : '';
+            
+            // Si grupos_permitidos está vacío, usar el campo grupo como fallback
+            if (gruposPermitidos.length === 0) {
+              if (esStaff && grupoClase.includes('adult')) {
+                claseParaGrupo = true;
+              } else {
+                if (grupoEdad === 'adultos' && !grupoClase.includes('adult')) claseParaGrupo = false;
+                if (grupoEdad === 'teens' && !grupoClase.includes('teen')) claseParaGrupo = false;
+                if (grupoEdad === 'kids' && !grupoClase.includes('kid')) claseParaGrupo = false;
+              }
+            } else {
+              // Usar grupos_permitidos (soporta español e inglés)
+              if (esStaff && (gruposPermitidos.includes('adults') || gruposPermitidos.includes('adultos'))) {
+                claseParaGrupo = true;
+              } else {
+                if (grupoEdad === 'adultos' && !gruposPermitidos.includes('adults') && !gruposPermitidos.includes('adultos')) claseParaGrupo = false;
+                if (grupoEdad === 'teens' && !gruposPermitidos.includes('teens')) claseParaGrupo = false;
+                if (grupoEdad === 'kids' && !gruposPermitidos.includes('kids') && !gruposPermitidos.includes('niños')) claseParaGrupo = false;
+              }
+            }
           }
           if (!claseParaGrupo) continue;
           if (esCoach) {
+            disponible = true;
+          } else if (esStaff && clase.grupo && clase.grupo.toLowerCase().includes('adult')) {
+            // Staff tiene acceso a todas las clases de adultos
             disponible = true;
           } else {
             const esTiquetera = selectedUsuario?.plan?.toLowerCase().includes('tiquetera');
@@ -255,15 +305,6 @@ function AppContent() {
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [popupVisible, selectedUsuario]);
-  const [clasesAhora, setClasesAhora] = useState<{ actual: string; proxima: string }>({ actual: '', proxima: '' });
-  const [checkinMessage, setCheckinMessage] = useState<string>('');
-  // Manejar la nueva estructura de clases_ahora
-  const claseActualObj: {disciplina?: string, grupo?: string, start?: string, end?: string} | null =
-    clasesAhoraRaw && clasesAhoraRaw.actual && typeof clasesAhoraRaw.actual === 'object' && !Array.isArray(clasesAhoraRaw.actual)
-      ? clasesAhoraRaw.actual
-      : null;
-  const clasesSiguientesArr: Array<{disciplina?: string, grupo?: string, start?: string, end?: string}> =
-    clasesAhoraRaw && Array.isArray(clasesAhoraRaw.proximas) ? clasesAhoraRaw.proximas : [];
 
   // Guardar clases disponibles por usuario si existen en la respuesta
   // (esto solo es ejemplo, puedes usarlo donde lo necesites en la app)
@@ -271,7 +312,32 @@ function AppContent() {
   const [search, setSearch] = useState('');
   const searchInputRef = useRef<TextInput>(null);
   const searchTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const popupTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [refreshing, setRefreshing] = useState(false);
+
+  // Temporizador para cerrar popup automáticamente después de 5 segundos de inactividad
+  useEffect(() => {
+    if (popupVisible && selectedUsuario) {
+      // Iniciar temporizador de 5 segundos
+      popupTimerRef.current = setTimeout(() => {
+        setPopupVisible(false);
+        setSelectedUsuario(null);
+        setSelectedClases([]);
+        setShowPendingWarning(false);
+        setShowInactiveWarning(false);
+        setSearch('');
+        setCheckinMessage('');
+        setIsCheckingIn(false);
+        fetchOndeck();
+      }, 5000);
+    }
+    
+    return () => {
+      if (popupTimerRef.current) {
+        clearTimeout(popupTimerRef.current);
+      }
+    };
+  }, [popupVisible, selectedUsuario]);
 
   // Temporizador para limpiar búsqueda automáticamente
   useEffect(() => {
@@ -400,7 +466,6 @@ function AppContent() {
       
       // Verificar si cambió el día
       if (currentDay !== lastCheckDayRef.current) {
-        console.log(`Cambio de día detectado (${lastCheckDayRef.current} -> ${currentDay}), actualizando usuarios...`);
         lastCheckDayRef.current = currentDay;
         fetchUsuarios();
         return;
@@ -409,7 +474,6 @@ function AppContent() {
       // Verificar si la clase actual terminó
       if (claseActualRef.current && claseActualRef.current.end) {
         if (currentTime >= claseActualRef.current.end) {
-          console.log(`Hora actual (${currentTime}) >= hora de fin de clase actual (${claseActualRef.current.end}), actualizando usuarios...`);
           fetchUsuarios();
           return;
         }
@@ -419,7 +483,6 @@ function AppContent() {
       if (clasesSiguientesRef.current.length > 0 && clasesSiguientesRef.current[0].start) {
         const nextClassStart = clasesSiguientesRef.current[0].start;
         if (currentTime >= nextClassStart) {
-          console.log(`Hora actual (${currentTime}) >= hora de inicio de próxima clase (${nextClassStart}), actualizando usuarios...`);
           fetchUsuarios();
           return;
         }
@@ -567,6 +630,10 @@ function AppContent() {
                   style={[styles.popupClaseItem, (!selectedUsuario?.saldo_clases_personalizadas || selectedUsuario?.saldo_clases_personalizadas === '0') && {opacity: 0.5}]}
                   disabled={!selectedUsuario?.saldo_clases_personalizadas || selectedUsuario?.saldo_clases_personalizadas === '0'}
                   onPress={() => {
+                    // Cancelar temporizador de cierre automático
+                    if (popupTimerRef.current) {
+                      clearTimeout(popupTimerRef.current);
+                    }
                     setSelectedClases((prev) => {
                       const key = 'personalizada';
                       if (prev.includes(key)) {
@@ -586,6 +653,7 @@ function AppContent() {
               {claseActualObj && (claseActualObj.disciplina || claseActualObj.grupo) &&
                 claseActualObj.disciplina && claseActualObj.disciplina.trim().toLowerCase() !== 'ninguno' ? (() => {
                 const esCoach = selectedUsuario?.roles && selectedUsuario.roles.toLowerCase().includes('coach');
+                const esStaff = selectedUsuario?.roles && (selectedUsuario.roles.toLowerCase().includes('admin') || selectedUsuario.roles.toLowerCase().includes('superadmin') || selectedUsuario.roles.toLowerCase().includes('staff'));
                 let grupoEdad = '';
                 let accesoTotal = false;
                 if (
@@ -600,17 +668,40 @@ function AppContent() {
                   else if (selectedUsuario.edad >= 11) grupoEdad = 'teens';
                   else grupoEdad = 'kids';
                 }
-                // Filtro de grupo de edad
+                // Filtro de grupo de edad usando grupos_permitidos (con fallback a grupo)
                 let claseParaGrupo = true;
-                if (!accesoTotal && !esCoach && claseActualObj.grupo) {
-                  const grupoClase = claseActualObj.grupo.trim().toLowerCase();
-                  if (grupoEdad === 'adultos' && !grupoClase.includes('adult')) claseParaGrupo = false;
-                  if (grupoEdad === 'teens' && !grupoClase.includes('teen')) claseParaGrupo = false;
-                  if (grupoEdad === 'kids' && !grupoClase.includes('kid')) claseParaGrupo = false;
+                if (!accesoTotal && !esCoach) {
+                  const gruposPermitidos = claseActualObj.grupos_permitidos && claseActualObj.grupos_permitidos.length > 0 
+                    ? claseActualObj.grupos_permitidos.map((g: string) => g.toLowerCase())
+                    : [];
+                  const grupoClase = claseActualObj.grupo ? claseActualObj.grupo.trim().toLowerCase() : '';
+                  
+                  // Si grupos_permitidos está vacío, usar el campo grupo como fallback
+                  if (gruposPermitidos.length === 0) {
+                    if (esStaff && grupoClase.includes('adult')) {
+                      claseParaGrupo = true;
+                    } else {
+                      if (grupoEdad === 'adultos' && !grupoClase.includes('adult')) claseParaGrupo = false;
+                      if (grupoEdad === 'teens' && !grupoClase.includes('teen')) claseParaGrupo = false;
+                      if (grupoEdad === 'kids' && !grupoClase.includes('kid')) claseParaGrupo = false;
+                    }
+                  } else {
+                    // Usar grupos_permitidos (soporta español e inglés)
+                    if (esStaff && (gruposPermitidos.includes('adults') || gruposPermitidos.includes('adultos'))) {
+                      claseParaGrupo = true;
+                    } else {
+                      if (grupoEdad === 'adultos' && !gruposPermitidos.includes('adults') && !gruposPermitidos.includes('adultos')) claseParaGrupo = false;
+                      if (grupoEdad === 'teens' && !gruposPermitidos.includes('teens')) claseParaGrupo = false;
+                      if (grupoEdad === 'kids' && !gruposPermitidos.includes('kids') && !gruposPermitidos.includes('niños')) claseParaGrupo = false;
+                    }
+                  }
                 }
                 // Filtro de acceso por usuario
                 let accesoUsuario = false;
                 if (esCoach || accesoTotal) {
+                  accesoUsuario = true;
+                } else if (esStaff && claseActualObj.grupo && claseActualObj.grupo.toLowerCase().includes('adult')) {
+                  // Staff tiene acceso a todas las clases de adultos
                   accesoUsuario = true;
                 } else {
                   const esTiquetera = selectedUsuario?.plan?.toLowerCase().includes('tiquetera');
@@ -624,11 +715,16 @@ function AppContent() {
                   }
                 }
                 const disponible = claseParaGrupo && accesoUsuario;
+                
                 return (
                   <TouchableOpacity
                     style={[styles.popupClaseItem, !disponible && {opacity: 0.5}]}
                     disabled={!disponible}
                     onPress={() => {
+                      // Cancelar temporizador de cierre automático
+                      if (popupTimerRef.current) {
+                        clearTimeout(popupTimerRef.current);
+                      }
                       setSelectedClases((prev) => {
                         const key = 'actual';
                         if (prev.includes(key)) {
@@ -653,6 +749,7 @@ function AppContent() {
                   .filter(clase => clase.disciplina && clase.disciplina.trim().toLowerCase() !== 'ninguno')
                   .map((clase: any, idx: number) => {
                     const esCoach = selectedUsuario?.roles && selectedUsuario.roles.toLowerCase().includes('coach');
+                    const esStaff = selectedUsuario?.roles && (selectedUsuario.roles.toLowerCase().includes('admin') || selectedUsuario.roles.toLowerCase().includes('superadmin') || selectedUsuario.roles.toLowerCase().includes('staff'));
                     let grupoEdad = '';
                     let accesoTotal = false;
                     if (
@@ -667,17 +764,40 @@ function AppContent() {
                       else if (selectedUsuario.edad >= 11) grupoEdad = 'teens';
                       else if (selectedUsuario.edad > 3) grupoEdad = 'kids';
                     }
-                    // Filtro de grupo de edad
+                    // Filtro de grupo de edad usando grupos_permitidos (con fallback a grupo)
                     let claseParaGrupo = true;
-                    if (!accesoTotal && !esCoach && clase.grupo) {
-                      const grupoClase = clase.grupo.trim().toLowerCase();
-                      if (grupoEdad === 'adultos' && !grupoClase.includes('adult')) claseParaGrupo = false;
-                      if (grupoEdad === 'teens' && !grupoClase.includes('teen')) claseParaGrupo = false;
-                      if (grupoEdad === 'kids' && !grupoClase.includes('kid')) claseParaGrupo = false;
+                    if (!accesoTotal && !esCoach) {
+                      const gruposPermitidos = clase.grupos_permitidos && clase.grupos_permitidos.length > 0 
+                        ? clase.grupos_permitidos.map((g: string) => g.toLowerCase())
+                        : [];
+                      const grupoClase = clase.grupo ? clase.grupo.trim().toLowerCase() : '';
+                      
+                      // Si grupos_permitidos está vacío, usar el campo grupo como fallback
+                      if (gruposPermitidos.length === 0) {
+                        if (esStaff && grupoClase.includes('adult')) {
+                          claseParaGrupo = true;
+                        } else {
+                          if (grupoEdad === 'adultos' && !grupoClase.includes('adult')) claseParaGrupo = false;
+                          if (grupoEdad === 'teens' && !grupoClase.includes('teen')) claseParaGrupo = false;
+                          if (grupoEdad === 'kids' && !grupoClase.includes('kid')) claseParaGrupo = false;
+                        }
+                      } else {
+                        // Usar grupos_permitidos (soporta español e inglés)
+                        if (esStaff && (gruposPermitidos.includes('adults') || gruposPermitidos.includes('adultos'))) {
+                          claseParaGrupo = true;
+                        } else {
+                          if (grupoEdad === 'adultos' && !gruposPermitidos.includes('adults') && !gruposPermitidos.includes('adultos')) claseParaGrupo = false;
+                          if (grupoEdad === 'teens' && !gruposPermitidos.includes('teens')) claseParaGrupo = false;
+                          if (grupoEdad === 'kids' && !gruposPermitidos.includes('kids') && !gruposPermitidos.includes('niños')) claseParaGrupo = false;
+                        }
+                      }
                     }
                     // Filtro de acceso por usuario
                     let accesoUsuario = false;
                     if (esCoach || accesoTotal) {
+                      accesoUsuario = true;
+                    } else if (esStaff && clase.grupo && clase.grupo.toLowerCase().includes('adult')) {
+                      // Staff tiene acceso a todas las clases de adultos
                       accesoUsuario = true;
                     } else {
                       const esTiquetera = selectedUsuario?.plan?.toLowerCase().includes('tiquetera');
@@ -698,6 +818,10 @@ function AppContent() {
                         style={[styles.popupClaseItem, !disponible && {opacity: 0.5}]}
                         disabled={!disponible}
                         onPress={() => {
+                          // Cancelar temporizador de cierre automático
+                          if (popupTimerRef.current) {
+                            clearTimeout(popupTimerRef.current);
+                          }
                           setSelectedClases((prev) => {
                             if (prev.includes(idx.toString())) {
                               return prev.filter(c => c !== idx.toString());
@@ -721,6 +845,10 @@ function AppContent() {
                 title="Cancelar"
                 color="#888"
                 onPress={() => {
+                  // Cancelar temporizador de cierre automático
+                  if (popupTimerRef.current) {
+                    clearTimeout(popupTimerRef.current);
+                  }
                   setPopupVisible(false);
                   setSelectedUsuario(null);
                   setSelectedClases([]);
@@ -738,6 +866,10 @@ function AppContent() {
                 color="#2196F3"
                 disabled={isCheckingIn}
                 onPress={async () => {
+                  // Cancelar temporizador de cierre automático
+                  if (popupTimerRef.current) {
+                    clearTimeout(popupTimerRef.current);
+                  }
                   if (!selectedUsuario || selectedClases.length === 0) {
                     setCheckinMessage('Debes seleccionar al menos una clase.');
                     return;
@@ -798,14 +930,11 @@ function AppContent() {
                     });
                     
                     const responseText = await response.text();
-                    console.log('Respuesta de la API (texto):', responseText);
                     
                     let result;
                     try {
                       result = JSON.parse(responseText);
                     } catch (parseError: any) {
-                      console.error('Error al parsear JSON:', parseError);
-                      console.error('Respuesta completa de la API:', responseText);
                       setCheckinMessage(`Error: La API no devolvió un JSON válido. Ver consola para detalles.`);
                       return;
                     }
@@ -838,7 +967,6 @@ function AppContent() {
                     setIsCheckingIn(false);
                     const errorMsg = err.message || String(err);
                     setCheckinMessage(`Error de red al realizar el check-in: ${errorMsg}`);
-                    console.error('Error completo en check-in:', err);
                   }
                 }}
               />
@@ -978,7 +1106,7 @@ function AppContent() {
                   <>
                     <View style={{marginBottom: 20}}>
                       <Text style={{color: '#fff', fontSize: 18, fontWeight: 'bold', marginBottom: 15, textAlign: 'center'}}>
-                        CLASES PERSONALIZADAS
+                        CLASES PERSONALIZADAS:
                       </Text>
                       <View style={{flexDirection: 'row', flexWrap: 'wrap', gap: 20, justifyContent: 'center'}}>
                         {personalizadasOndeck.map((nombreTabla: string, idx: number) => {
@@ -1102,6 +1230,66 @@ function AppContent() {
                   );
                 })}
               </View>
+                {/* Sección de alumnos ondeck próximas clases */}
+                {ondeckProximas.length > 0 && (
+                  <>
+                    {/* Barra horizontal separadora */}
+                    <View style={{height: 2, backgroundColor: '#444', marginVertical: 20}} />
+                    {/* Título sin contador */}
+                    <View style={{marginBottom: 20, alignItems: 'center'}}>
+                      <Text style={{color: '#fff', fontSize: 18, fontWeight: 'bold'}}>
+                        ALUMNOS ON DECK PRÓXIMAS CLASES:
+                      </Text>
+                    </View>
+                    <View style={{flexDirection: 'row', flexWrap: 'wrap', gap: 20}}>
+                      {ondeckProximas.map((nombreTabla: string, idx: number) => {
+                        const usuario = usuarios.find(u => u.nombre_tabla === nombreTabla);
+                        if (!usuario) return null;
+                        
+                        const fotoUrl = fotos[usuarios.indexOf(usuario)] && fotos[usuarios.indexOf(usuario)].trim() !== '' ? fotos[usuarios.indexOf(usuario)] : null;
+                        
+                        return (
+                          <View key={`ondeck-proxima-${idx}`} style={{alignItems: 'center', width: 120}}>
+                            <View style={{
+                              width: 100,
+                              height: 100,
+                              borderRadius: 50,
+                              borderWidth: 3,
+                              borderColor: '#888',
+                              overflow: 'hidden',
+                              backgroundColor: '#444',
+                              justifyContent: 'center',
+                              alignItems: 'center'
+                            }}>
+                              {fotoUrl ? (
+                                <>
+                                  <Image
+                                    source={{ uri: fotoUrl }}
+                                    style={{width: '100%', height: '100%'}}
+                                    resizeMode="cover"
+                                  />
+                                  {/* Overlay para efecto blanco y negro */}
+                                  <View style={{
+                                    position: 'absolute',
+                                    top: 0,
+                                    left: 0,
+                                    right: 0,
+                                    bottom: 0,
+                                    backgroundColor: '#000',
+                                    opacity: 0.8
+                                  }} />
+                                </>
+                              ) : (
+                                <Text style={{color: '#888', fontSize: 32}}>?</Text>
+                              )}
+                            </View>
+                            <Text style={{color: '#888', fontSize: 14, marginTop: 8, textAlign: 'center'}}>{usuario.nombre}</Text>
+                          </View>
+                        );
+                      })}
+                    </View>
+                  </>
+                )}
               </View>
             ) : (
               <Text style={{color: '#888', fontSize: 16, padding: 20}}>Sin usuarios en espera</Text>
