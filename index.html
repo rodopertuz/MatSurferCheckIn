@@ -1,0 +1,605 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>MatSurfer - Sistema de Gestión para Gimnasios de Artes Marciales</title>
+    <meta name="description" content="Plataforma completa para gestionar tu gimnasio de BJJ, Boxeo o Artes Marciales. Check-ins, membresías, clases y más.">
+    
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        :root {
+            --primary: #1a73e8;
+            --primary-dark: #0d47a1;
+            --secondary: #00bfa5;
+            --dark: #1a1a1a;
+            --light: #f5f5f5;
+            --white: #ffffff;
+            --gray: #757575;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+            line-height: 1.6;
+            color: var(--dark);
+            overflow-x: hidden;
+        }
+
+        /* Navigation */
+        nav {
+            position: fixed;
+            top: 0;
+            width: 100%;
+            background: rgba(255, 255, 255, 0.98);
+            backdrop-filter: blur(10px);
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+            z-index: 1000;
+            padding: 1rem 0;
+        }
+
+        .nav-container {
+            max-width: 1200px;
+            margin: 0 auto;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 0 2rem;
+        }
+
+        .logo {
+            font-size: 1.8rem;
+            font-weight: 700;
+            color: var(--primary);
+            text-decoration: none;
+        }
+
+        .logo span {
+            color: var(--secondary);
+        }
+
+        .nav-links {
+            display: flex;
+            gap: 2rem;
+            list-style: none;
+        }
+
+        .nav-links a {
+            color: var(--dark);
+            text-decoration: none;
+            font-weight: 500;
+            transition: color 0.3s;
+        }
+
+        .nav-links a:hover {
+            color: var(--primary);
+        }
+
+        /* Hero Section */
+        .hero {
+            margin-top: 80px;
+            min-height: 90vh;
+            background: linear-gradient(135deg, var(--primary) 0%, var(--primary-dark) 100%);
+            color: var(--white);
+            display: flex;
+            align-items: center;
+            position: relative;
+            overflow: hidden;
+        }
+
+        .hero::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: url('data:image/svg+xml,<svg width="100" height="100" xmlns="http://www.w3.org/2000/svg"><path d="M0 0h100v100H0z" fill="none"/><path d="M50 0L100 50L50 100L0 50z" fill="rgba(255,255,255,0.05)"/></svg>');
+            opacity: 0.1;
+        }
+
+        .hero-container {
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 0 2rem;
+            position: relative;
+            z-index: 1;
+        }
+
+        .hero-content {
+            max-width: 600px;
+        }
+
+        .hero h1 {
+            font-size: 3.5rem;
+            font-weight: 800;
+            margin-bottom: 1.5rem;
+            line-height: 1.2;
+        }
+
+        .hero p {
+            font-size: 1.3rem;
+            margin-bottom: 2rem;
+            opacity: 0.9;
+        }
+
+        .cta-buttons {
+            display: flex;
+            gap: 1rem;
+            flex-wrap: wrap;
+        }
+
+        .btn {
+            padding: 1rem 2rem;
+            border-radius: 50px;
+            font-size: 1rem;
+            font-weight: 600;
+            text-decoration: none;
+            transition: all 0.3s;
+            display: inline-block;
+            cursor: pointer;
+            border: none;
+        }
+
+        .btn-primary {
+            background: var(--white);
+            color: var(--primary);
+        }
+
+        .btn-primary:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 10px 25px rgba(0,0,0,0.2);
+        }
+
+        .btn-secondary {
+            background: transparent;
+            color: var(--white);
+            border: 2px solid var(--white);
+        }
+
+        .btn-secondary:hover {
+            background: var(--white);
+            color: var(--primary);
+        }
+
+        /* Features Section */
+        .features {
+            padding: 6rem 2rem;
+            background: var(--light);
+        }
+
+        .section-title {
+            text-align: center;
+            font-size: 2.5rem;
+            font-weight: 700;
+            margin-bottom: 3rem;
+            color: var(--dark);
+        }
+
+        .features-grid {
+            max-width: 1200px;
+            margin: 0 auto;
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+            gap: 2rem;
+        }
+
+        .feature-card {
+            background: var(--white);
+            padding: 2rem;
+            border-radius: 15px;
+            box-shadow: 0 5px 20px rgba(0,0,0,0.08);
+            transition: transform 0.3s;
+        }
+
+        .feature-card:hover {
+            transform: translateY(-5px);
+        }
+
+        .feature-icon {
+            font-size: 3rem;
+            margin-bottom: 1rem;
+        }
+
+        .feature-card h3 {
+            font-size: 1.5rem;
+            margin-bottom: 1rem;
+            color: var(--primary);
+        }
+
+        .feature-card p {
+            color: var(--gray);
+        }
+
+        /* Benefits Section */
+        .benefits {
+            padding: 6rem 2rem;
+            background: var(--white);
+        }
+
+        .benefits-container {
+            max-width: 1200px;
+            margin: 0 auto;
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 4rem;
+            align-items: center;
+        }
+
+        .benefits-list {
+            list-style: none;
+        }
+
+        .benefit-item {
+            display: flex;
+            align-items: start;
+            margin-bottom: 1.5rem;
+        }
+
+        .benefit-icon {
+            font-size: 1.5rem;
+            color: var(--secondary);
+            margin-right: 1rem;
+            flex-shrink: 0;
+        }
+
+        .benefit-item h4 {
+            font-size: 1.2rem;
+            margin-bottom: 0.5rem;
+        }
+
+        .benefit-item p {
+            color: var(--gray);
+        }
+
+        /* Pricing Section */
+        .pricing {
+            padding: 6rem 2rem;
+            background: var(--light);
+        }
+
+        .pricing-grid {
+            max-width: 1200px;
+            margin: 0 auto;
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+            gap: 2rem;
+        }
+
+        .pricing-card {
+            background: var(--white);
+            padding: 2.5rem;
+            border-radius: 15px;
+            text-align: center;
+            box-shadow: 0 5px 20px rgba(0,0,0,0.08);
+            transition: transform 0.3s;
+        }
+
+        .pricing-card.featured {
+            border: 3px solid var(--primary);
+            transform: scale(1.05);
+        }
+
+        .pricing-card:hover {
+            transform: translateY(-5px);
+        }
+
+        .pricing-card h3 {
+            font-size: 1.5rem;
+            margin-bottom: 1rem;
+        }
+
+        .price {
+            font-size: 3rem;
+            font-weight: 700;
+            color: var(--primary);
+            margin: 1rem 0;
+        }
+
+        .price span {
+            font-size: 1.2rem;
+            color: var(--gray);
+        }
+
+        .pricing-features {
+            list-style: none;
+            margin: 2rem 0;
+            text-align: left;
+        }
+
+        .pricing-features li {
+            padding: 0.5rem 0;
+            border-bottom: 1px solid var(--light);
+        }
+
+        .pricing-features li::before {
+            content: '✓';
+            color: var(--secondary);
+            font-weight: bold;
+            margin-right: 0.5rem;
+        }
+
+        /* CTA Section */
+        .cta-section {
+            padding: 6rem 2rem;
+            background: linear-gradient(135deg, var(--primary) 0%, var(--primary-dark) 100%);
+            color: var(--white);
+            text-align: center;
+        }
+
+        .cta-section h2 {
+            font-size: 2.5rem;
+            margin-bottom: 1.5rem;
+        }
+
+        .cta-section p {
+            font-size: 1.2rem;
+            margin-bottom: 2rem;
+            opacity: 0.9;
+        }
+
+        /* Footer */
+        footer {
+            background: var(--dark);
+            color: var(--white);
+            padding: 3rem 2rem 1rem;
+        }
+
+        .footer-container {
+            max-width: 1200px;
+            margin: 0 auto;
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+            gap: 2rem;
+            margin-bottom: 2rem;
+        }
+
+        .footer-section h4 {
+            margin-bottom: 1rem;
+            color: var(--secondary);
+        }
+
+        .footer-section ul {
+            list-style: none;
+        }
+
+        .footer-section a {
+            color: var(--white);
+            text-decoration: none;
+            opacity: 0.8;
+            transition: opacity 0.3s;
+        }
+
+        .footer-section a:hover {
+            opacity: 1;
+        }
+
+        .footer-bottom {
+            text-align: center;
+            padding-top: 2rem;
+            border-top: 1px solid rgba(255,255,255,0.1);
+            opacity: 0.6;
+        }
+
+        /* Responsive */
+        @media (max-width: 768px) {
+            .hero h1 {
+                font-size: 2.5rem;
+            }
+
+            .benefits-container {
+                grid-template-columns: 1fr;
+            }
+
+            .nav-links {
+                display: none;
+            }
+        }
+    </style>
+</head>
+<body>
+    <!-- Navigation -->
+    <nav>
+        <div class="nav-container">
+            <a href="#" class="logo">Mat<span>Surfer</span></a>
+            <ul class="nav-links">
+                <li><a href="#features">Características</a></li>
+                <li><a href="#benefits">Beneficios</a></li>
+                <li><a href="#pricing">Precios</a></li>
+                <li><a href="#contact">Contacto</a></li>
+            </ul>
+        </div>
+    </nav>
+
+    <!-- Hero Section -->
+    <section class="hero">
+        <div class="hero-container">
+            <div class="hero-content">
+                <h1>Gestiona tu gimnasio con un solo tap 🥋</h1>
+                <p>La plataforma todo-en-uno para gimnasios de BJJ, Boxeo y Artes Marciales. Check-ins, membresías, clases y pagos en una sola app.</p>
+                <div class="cta-buttons">
+                    <a href="#contact" class="btn btn-primary">Prueba gratis 30 días</a>
+                    <a href="#features" class="btn btn-secondary">Ver demo</a>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- Features Section -->
+    <section id="features" class="features">
+        <h2 class="section-title">Todo lo que necesitas en un solo lugar</h2>
+        <div class="features-grid">
+            <div class="feature-card">
+                <div class="feature-icon">📱</div>
+                <h3>Check-in rápido</h3>
+                <p>Registra asistencia en menos de 3 segundos. Fetch automático cada 5 segundos para actualización en tiempo real.</p>
+            </div>
+            <div class="feature-card">
+                <div class="feature-icon">💳</div>
+                <h3>Control de membresías</h3>
+                <p>Gestiona planes, saldos de clases y pagos. Alertas automáticas de vencimiento y saldo bajo.</p>
+            </div>
+            <div class="feature-card">
+                <div class="feature-icon">📊</div>
+                <h3>Reportes en tiempo real</h3>
+                <p>Analítica de asistencia, ingresos y retención. Toma decisiones basadas en datos reales.</p>
+            </div>
+            <div class="feature-card">
+                <div class="feature-icon">🗓️</div>
+                <h3>Horarios inteligentes</h3>
+                <p>Gestión automática de clases por disciplina, grupo y horario. Sincronización perfecta con el sistema.</p>
+            </div>
+            <div class="feature-card">
+                <div class="feature-icon">👥</div>
+                <h3>Multi-gimnasio</h3>
+                <p>Administra múltiples locaciones desde una sola cuenta. Ideal para franquicias y equipos.</p>
+            </div>
+            <div class="feature-card">
+                <div class="feature-icon">📲</div>
+                <h3>App móvil nativa</h3>
+                <p>Disponible para iOS y Android. Funciona offline y sincroniza cuando hay conexión.</p>
+            </div>
+        </div>
+    </section>
+
+    <!-- Benefits Section -->
+    <section id="benefits" class="benefits">
+        <div class="benefits-container">
+            <div>
+                <h2 class="section-title" style="text-align: left;">¿Por qué MatSurfer?</h2>
+                <ul class="benefits-list">
+                    <li class="benefit-item">
+                        <span class="benefit-icon">⚡</span>
+                        <div>
+                            <h4>Ahorra tiempo</h4>
+                            <p>Automatiza tareas repetitivas y enfócate en lo importante: entrenar.</p>
+                        </div>
+                    </li>
+                    <li class="benefit-item">
+                        <span class="benefit-icon">💰</span>
+                        <div>
+                            <h4>Aumenta ingresos</h4>
+                            <p>Reduce morosidad con alertas automáticas y mejora la retención de estudiantes.</p>
+                        </div>
+                    </li>
+                    <li class="benefit-item">
+                        <span class="benefit-icon">🎯</span>
+                        <div>
+                            <h4>Experiencia superior</h4>
+                            <p>Tus estudiantes disfrutarán de check-ins rápidos y seguimiento personalizado.</p>
+                        </div>
+                    </li>
+                    <li class="benefit-item">
+                        <span class="benefit-icon">🔒</span>
+                        <div>
+                            <h4>Seguridad garantizada</h4>
+                            <p>SSL/HTTPS, backups automáticos y protección de datos RGPD compliant.</p>
+                        </div>
+                    </li>
+                </ul>
+            </div>
+            <div style="text-align: center;">
+                <img src="https://via.placeholder.com/500x600/1a73e8/ffffff?text=MatSurfer+App" alt="MatSurfer App" style="max-width: 100%; border-radius: 15px; box-shadow: 0 20px 60px rgba(0,0,0,0.3);">
+            </div>
+        </div>
+    </section>
+
+    <!-- Pricing Section -->
+    <section id="pricing" class="pricing">
+        <h2 class="section-title">Planes flexibles para cada etapa</h2>
+        <div class="pricing-grid">
+            <div class="pricing-card">
+                <h3>Starter</h3>
+                <div class="price">$49<span>/mes</span></div>
+                <p>Perfecto para gimnasios pequeños</p>
+                <ul class="pricing-features">
+                    <li>Hasta 100 estudiantes</li>
+                    <li>1 gimnasio</li>
+                    <li>Check-in móvil</li>
+                    <li>Reportes básicos</li>
+                    <li>Soporte por email</li>
+                </ul>
+                <a href="#contact" class="btn btn-secondary">Empezar gratis</a>
+            </div>
+            <div class="pricing-card featured">
+                <h3>Professional</h3>
+                <div class="price">$99<span>/mes</span></div>
+                <p>Lo más popular</p>
+                <ul class="pricing-features">
+                    <li>Hasta 500 estudiantes</li>
+                    <li>Hasta 3 gimnasios</li>
+                    <li>Todo de Starter +</li>
+                    <li>Reportes avanzados</li>
+                    <li>Integración WhatsApp</li>
+                    <li>Soporte prioritario</li>
+                </ul>
+                <a href="#contact" class="btn btn-primary">Empezar gratis</a>
+            </div>
+            <div class="pricing-card">
+                <h3>Enterprise</h3>
+                <div class="price">Contacto</div>
+                <p>Para franquicias y equipos</p>
+                <ul class="pricing-features">
+                    <li>Estudiantes ilimitados</li>
+                    <li>Gimnasios ilimitados</li>
+                    <li>Todo de Professional +</li>
+                    <li>API personalizada</li>
+                    <li>Onboarding dedicado</li>
+                    <li>Soporte 24/7</li>
+                </ul>
+                <a href="#contact" class="btn btn-secondary">Hablar con ventas</a>
+            </div>
+        </div>
+    </section>
+
+    <!-- CTA Section -->
+    <section class="cta-section">
+        <h2>¿Listo para digitalizar tu gimnasio?</h2>
+        <p>Únete a los gimnasios que ya transformaron su gestión con MatSurfer</p>
+        <a href="#contact" class="btn btn-primary">Prueba gratis 30 días - Sin tarjeta</a>
+    </section>
+
+    <!-- Footer -->
+    <footer id="contact">
+        <div class="footer-container">
+            <div class="footer-section">
+                <h4>MatSurfer</h4>
+                <p>La plataforma de gestión para gimnasios de artes marciales más completa del mercado.</p>
+            </div>
+            <div class="footer-section">
+                <h4>Producto</h4>
+                <ul>
+                    <li><a href="#features">Características</a></li>
+                    <li><a href="#pricing">Precios</a></li>
+                    <li><a href="#">Documentación API</a></li>
+                    <li><a href="#">Changelog</a></li>
+                </ul>
+            </div>
+            <div class="footer-section">
+                <h4>Soporte</h4>
+                <ul>
+                    <li><a href="#">Centro de ayuda</a></li>
+                    <li><a href="#">Tutoriales</a></li>
+                    <li><a href="#">Estado del sistema</a></li>
+                    <li><a href="mailto:hola@matsurfer.co">hola@matsurfer.co</a></li>
+                </ul>
+            </div>
+            <div class="footer-section">
+                <h4>Legal</h4>
+                <ul>
+                    <li><a href="#">Términos de servicio</a></li>
+                    <li><a href="#">Política de privacidad</a></li>
+                    <li><a href="#">Política de cookies</a></li>
+                </ul>
+            </div>
+        </div>
+        <div class="footer-bottom">
+            <p>&copy; 2026 MatSurfer. Todos los derechos reservados.</p>
+        </div>
+    </footer>
+</body>
+</html>

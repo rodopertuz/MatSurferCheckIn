@@ -11,6 +11,7 @@ import {
   SafeAreaProvider,
   useSafeAreaInsets,
 } from 'react-native-safe-area-context';
+import { API_CONFIG, API_ENDPOINTS } from '../../shared/constants/api.constants';
 
 function App() {
   const isDarkMode = useColorScheme() === 'dark';
@@ -65,10 +66,10 @@ function AppContent() {
   const fetchOndeck = async () => {
     setOndeckError('');
     try {
-      const response = await fetch('https://www.satorijiujitsu.com.co/api/api.php?action=ondeck', {
+      const response = await fetch(`${API_CONFIG.BASE_URL}${API_ENDPOINTS.ONDECK}`, {
         method: 'GET',
         headers: {
-          Authorization: 'Bearer ElArtesuave2023',
+          Authorization: API_CONFIG.TOKEN,
         },
       });
       const data = await response.json();
@@ -373,9 +374,9 @@ function AppContent() {
   const fetchUsuarios = () => {
     setLoading(true);
     setError('');
-    fetch('https://www.satorijiujitsu.com.co/api/api.php?action=usuarios', {
+    fetch(`${API_CONFIG.BASE_URL}${API_ENDPOINTS.USUARIOS}`, {
       headers: {
-        Authorization: 'Bearer ElArtesuave2023',
+        Authorization: API_CONFIG.TOKEN,
       },
     })
       .then(async (res) => {
@@ -917,11 +918,11 @@ function AppContent() {
                     }
                   });
                   try {
-                    const response = await fetch('https://www.satorijiujitsu.com.co/api/api.php?action=check-in', {
+                    const response = await fetch(`${API_CONFIG.BASE_URL}${API_ENDPOINTS.CHECKIN}`, {
                       method: 'POST',
                       headers: {
                         'Content-Type': 'application/json',
-                        Authorization: 'Bearer ElArtesuave2023',
+                        Authorization: API_CONFIG.TOKEN,
                       },
                       body: JSON.stringify({
                         nombre_tabla: selectedUsuario.nombre_tabla,

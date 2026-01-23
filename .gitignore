@@ -73,3 +73,17 @@ yarn-error.log
 !.yarn/releases
 !.yarn/sdks
 !.yarn/versions
+
+# API Configuration (sensitive data)
+apps/api/config.php
+apps/api/includes/connect.php
+apps/api/cambios_flag.json
+apps/api/.htaccess
+
+# Server configuration
+nginx-matsurfer.conf
+
+# Database backups
+database/backups/
+backup_*.sql
+*.sql
