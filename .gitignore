@@ -38,6 +38,7 @@ local.properties
 # node.js
 #
 node_modules/
+local_secrets/
 npm-debug.log
 yarn-error.log
 
@@ -87,3 +88,10 @@ nginx-matsurfer.conf
 database/backups/
 backup_*.sql
 *.sql
+
+# SSH Keys (never commit private keys)
+matsurfer-key
+matsurfer-key.pub
+*.pem
+*.key
+.ssh/

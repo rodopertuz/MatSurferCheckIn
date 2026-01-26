@@ -101,7 +101,7 @@ function actualizarEstados($conn, $date1, $uuid){
                         $diasAtras90 = new DateTime("now");
                         date_sub($diasAtras90,date_interval_create_from_date_string("90 days"));
                         $diasAtras90 = date_format($diasAtras90, "Y-m-d");
-                        $sql2 = "SELECT fecha FROM eventos WHERE uuid = '$uuid' AND evento NOT LIKE '%estado%' AND fecha > '$diasAtras90' ORDER BY fecha DESC, id DESC LIMIT 1";
+                        $sql2 = "SELECT fecha FROM check_ins WHERE uuid = '$uuid' AND check_ins NOT LIKE '%estado%' AND fecha > '$diasAtras90' ORDER BY fecha DESC, id DESC LIMIT 1";
                         $res2 = mysqli_query($conn, $sql2);
                         if ($res2){
                             if(mysqli_num_rows($res2) == 0){
@@ -118,7 +118,7 @@ function actualizarEstados($conn, $date1, $uuid){
                         }
                     }
 
-                    $sql3 = "SELECT * FROM eventos WHERE uuid = '$uuid' AND fecha = '$fechaHoy' AND item LIKE '%DROP%'";
+                    $sql3 = "SELECT * FROM check_ins WHERE uuid = '$uuid' AND fecha = '$fechaHoy' AND item LIKE '%DROP%'";
                     $res3 = mysqli_query($conn, $sql3);
                     if (mysqli_num_rows($res3) > 0) {
                         $estado = "activo";
@@ -129,13 +129,13 @@ function actualizarEstados($conn, $date1, $uuid){
                     $res2 = mysqli_query($conn, $sql2);
                     if ($res2) {
                         // if ($tipoEvento != "") {
-                        //     $sql3 = "INSERT INTO eventos (fecha, evento, saldo_clases, comentarios, uuid) VALUES ('$fechaHoy', '$tipoEvento', '$saldoClases', '$comentario', '$uuid') ";
+                        //     $sql3 = "INSERT INTO check_ins (fecha, check_ins, saldo_clases, comentarios, uuid) VALUES ('$fechaHoy', '$tipoEvento', '$saldoClases', '$comentario', '$uuid') ";
                         //     $res3 = mysqli_query($conn, $sql3);
                         //     if (!$res3) echo $conn->error;
                         // }
                         if ($estado != $estadoActual) {
                             $comentario = 'Cambio de estado a ' . strtoupper($estado) . ' el ' . $fechaHoy;
-                            $sql3 = "INSERT INTO eventos (fecha, evento, saldo_clases, comentarios, uuid) VALUES ('$fechaHoy', 'Cambio de Estado', '$saldoClases', '$comentario', '$uuid') ";
+                            $sql3 = "INSERT INTO check_ins (fecha, check_ins, saldo_clases, comentarios, uuid) VALUES ('$fechaHoy', 'Cambio de Estado', '$saldoClases', '$comentario', '$uuid') ";
                             $res3 = mysqli_query($conn, $sql3);
                             if (!$res3) {
                                 echo $conn->error;
@@ -153,7 +153,7 @@ function actualizarEstados($conn, $date1, $uuid){
                         throw new Exception("Error en actualizarEstados (ID=$uuid): " . mysqli_error($conn));
                     }
                 } else if (($row["estado"] == "congelado")) {
-                    $sql2 = "SELECT fecha FROM eventos WHERE uuid = '$uuid' AND evento LIKE '%cambio de estado%' AND comentarios LIKE '%congelado%' ORDER BY fecha DESC LIMIT 1";
+                    $sql2 = "SELECT fecha FROM check_ins WHERE uuid = '$uuid' AND check_ins LIKE '%cambio de estado%' AND comentarios LIKE '%congelado%' ORDER BY fecha DESC LIMIT 1";
                     $res2 = mysqli_query($conn, $sql2);
                     if ($res2) {
                         if (mysqli_num_rows($res2) > 0) {
@@ -171,7 +171,7 @@ function actualizarEstados($conn, $date1, $uuid){
                                 $sql3 = "UPDATE satori_alumnos SET estado = 'activo', ultima_actualizacion = '$fechaHoy', fecha_vencimiento = '$fechaVencimiento' WHERE nombre_tabla = '$uuid'";
                                 $res3 = mysqli_query($conn, $sql3);
                                 if ($res3){
-                                    $sql4 = "INSERT INTO eventos (fecha, evento, comentarios, uuid) VALUES ('$fechaHoy', 'Cambio de Estado', '$comentario', '$uuid')";
+                                    $sql4 = "INSERT INTO check_ins (fecha, check_ins, comentarios, uuid) VALUES ('$fechaHoy', 'Cambio de Estado', '$comentario', '$uuid')";
                                     $res4 = mysqli_query($conn, $sql4);
                                     // Activar flag de cambios para la API
                                     $flagPath = '../api/cambios_flag.json';
@@ -223,14 +223,14 @@ function consultaOnDeck($conn, $date1, $fecha, $hora1, $hora2, $expectReturn){
     }
 
     if ($hora1 == "100") {
-        $sql = "SELECT uuid, comentarios, horasminutos FROM eventos 
-        WHERE evento LIKE '%check%' 
+        $sql = "SELECT uuid, comentarios, horasminutos FROM check_ins 
+        WHERE check_ins LIKE '%check%' 
         AND fecha = '$fecha'
         AND comentarios LIKE '%personalizada%'
         ";
     } else {
-        $sql = "SELECT uuid, comentarios FROM eventos 
-        WHERE evento LIKE '%check%' 
+        $sql = "SELECT uuid, comentarios FROM check_ins 
+        WHERE check_ins LIKE '%check%' 
         AND fecha = '$fecha' 
         AND ((horasminutos >= '$hora1' AND horasminutos <= '$hora2') 
         OR (horasminutos >= '$hora1a' AND horasminutos <= '$hora2a'))
@@ -296,7 +296,7 @@ function consultaOnDeck($conn, $date1, $fecha, $hora1, $hora2, $expectReturn){
             <div class="pestanaContenido pestanaContenido-activo" onclick="cambiarPestanaContenido(1)">
                 ON-DECK
             </div>
-            <a href="../admin/asistenciasQr.php?evento=Check-In" target="_blank">
+            <a href="../admin/asistenciasQr.php?check_ins=Check-In" target="_blank">
                 <div class="pestanaContenido">
                     SELF CHECK-IN
                 </div>
@@ -576,7 +576,7 @@ function actualizarProgreso($conn, $uuid, $grado) {
         $progresoActual = 0;
     }
     
-    $sql2 = "SELECT fecha FROM eventos WHERE uuid = '$uuid' AND evento LIKE '%graduacion%' ORDER BY fecha DESC LIMIT 1";
+    $sql2 = "SELECT fecha FROM check_ins WHERE uuid = '$uuid' AND check_ins LIKE '%graduacion%' ORDER BY fecha DESC LIMIT 1";
     $resultado2 = mysqli_query($conn, $sql2);
     if ($resultado2){
         if (mysqli_num_rows($resultado2) > 0){
@@ -590,8 +590,8 @@ function actualizarProgreso($conn, $uuid, $grado) {
         echo mysqli_error($conn);
     }
     
-    $sql2 = "SELECT id FROM eventos WHERE uuid = '$uuid' 
-        AND evento LIKE '%check%'
+    $sql2 = "SELECT id FROM check_ins WHERE uuid = '$uuid' 
+        AND check_ins LIKE '%check%'
         AND fecha >= '$fechaUltimaGraduacion'
         AND (comentarios = ''
         OR comentarios LIKE '%bjj%')
@@ -686,22 +686,22 @@ function rangoHorasClases($fecha, $hms){
 
 function hallarSaldoClases($conn, $uuid){
     $saldo_clases = [];
-    $sql1 = "SELECT saldo_clases_personalizadas, id FROM eventos WHERE 
+    $sql1 = "SELECT saldo_clases_personalizadas, id FROM check_ins WHERE 
             uuid = '$uuid' AND 
             (comentarios LIKE '%Personalizada%' OR
             item LIKE '%Personalizada%') AND 
-            (evento LIKE '%check%' OR 
-            evento LIKE '%pago%' OR
-            evento LIKE '%Cambio de Estado%') 
+            (check_ins LIKE '%check%' OR 
+            check_ins LIKE '%pago%' OR
+            check_ins LIKE '%Cambio de Estado%') 
             ORDER BY fecha DESC, id DESC LIMIT 1";
-    $sql2 = "SELECT saldo_clases FROM eventos WHERE 
+    $sql2 = "SELECT saldo_clases FROM check_ins WHERE 
             uuid = '$uuid' AND 
             comentarios NOT LIKE '%personalizada%' AND
             item NOT LIKE '%personalizada%' AND
             saldo_clases != '' AND 
-            (evento LIKE '%check%' OR 
-            evento LIKE '%pago%' OR
-            evento LIKE '%Cambio de Estado%')
+            (check_ins LIKE '%check%' OR 
+            check_ins LIKE '%pago%' OR
+            check_ins LIKE '%Cambio de Estado%')
             ORDER BY fecha DESC, id DESC LIMIT 1";
     $res1 = mysqli_query($conn, $sql1);
     $res2 = mysqli_query($conn, $sql2);
@@ -710,7 +710,7 @@ function hallarSaldoClases($conn, $uuid){
             // echo "filas afctadas: " . mysqli_num_rows($res1) . "<br>";
             while ($row = mysqli_fetch_assoc($res1)){
                 $saldo_clases[] = $row["saldo_clases_personalizadas"];
-                // echo "ID evento: " . $row["id"] . "<br>";
+                // echo "ID check_ins: " . $row["id"] . "<br>";
             }
         } else {
             $saldo_clases[] = "";

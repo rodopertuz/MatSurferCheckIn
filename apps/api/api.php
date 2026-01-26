@@ -57,12 +57,12 @@ function getParam($key) {
 // Endpoint seguro para obtener usuarios
 if ($_SERVER['REQUEST_METHOD'] === 'GET'){
     if (getParam('action') === 'usuarios') {
-        $result = $conn->query("SELECT * FROM satori_alumnos WHERE estado != 'baja' AND estado != 'convenio' ORDER BY nombre ASC");
+        $result = $conn->query("SELECT a.*, ag.estado FROM alumnos a LEFT JOIN alumnos_gimnasios ag ON a.id_alumno = ag.id_alumno WHERE ag.estado != 'inactivo' OR ag.estado IS NULL ORDER BY a.nombre ASC");
         $usuarios = [];
         $clasesPorUsuario = [];
         $url_fotos = [];
-        $base_url = 'https://www.satorijiujitsu.com.co/img/users/'; // Ajusta si tu ruta es diferente
-        $logo_url = 'https://www.satorijiujitsu.com.co/img/satorilogotexto.png';
+        $base_url = 'https://matsurfer.co/img/users/'; // Ajusta si tu ruta es diferente
+        $logo_url = 'https://matsurfer.co/img/satorilogotexto.png';
 
         while ($row = $result->fetch_assoc()) {
             $usuarios[] = $row;
@@ -194,7 +194,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST'){
 
             file_put_contents('./apiPostResult.html', $htmlContent);
 
-            //Insertar evento en la base de datos
+            //Insertar check_ins en la base de datos
             try {
                 $sql = "SELECT * FROM satori_alumnos WHERE nombre_tabla = '$uuid'";
                 $resultado = mysqli_query($conn, $sql);
@@ -240,7 +240,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST'){
                     echo json_encode(['success' => false, 'error' => 'Error en insertarEventoApi' . $e->getMessage()]);
                     exit;
                 } else {
-                    echo json_encode(['success' => true, 'message' => 'Evento duplicado']);
+                    echo json_encode(['success' => true, 'message' => 'check_ins duplicado']);
                     exit;
                 }
             }

@@ -12,11 +12,11 @@ function insertarEventoApi($conn, $estadoActual, $fecha, $horasminutos, $saldo_c
         $comentarios = 'Asistió: '. $uuid . ', Check In: Personalizada';
         $metadata = $comentarios . ', Coach:';
         eventoYaExiste($conn, $fecha, 'Check-In', $comentarios, $uuid, $horasminutos);
-        $sql = "INSERT INTO eventos (fecha, evento, saldo_clases_personalizadas, comentarios, metadata, horasminutos, uuid) VALUES ('$fecha', 'Check-In', '$saldo_clases_personalizadas', '$comentarios', '$metadata', '$horasminutos', '$uuid')";
+        $sql = "INSERT INTO check_ins (fecha, check_ins, saldo_clases_personalizadas, comentarios, metadata, horasminutos, uuid) VALUES ('$fecha', 'Check-In', '$saldo_clases_personalizadas', '$comentarios', '$metadata', '$horasminutos', '$uuid')";
         $resultado = mysqli_query($conn, $sql);
         hallarSaldoClases($conn, $uuid);
         if (!$resultado || mysqli_affected_rows($conn) <= 0) {
-            throw new Exception("Error en la inserción de evento de clase personalizada: " . mysqli_error($conn));
+            throw new Exception("Error en la inserción de check_ins de clase personalizada: " . mysqli_error($conn));
         }
     } else if (stripos($promocion, "staff") !== FALSE) {
         if ($horasminutos < 1200) {
@@ -32,10 +32,10 @@ function insertarEventoApi($conn, $estadoActual, $fecha, $horasminutos, $saldo_c
             $metadata = $comentarios;
         }
         eventoYaExiste($conn, $fecha, 'Check-In', $comentarios, $uuid, $horasminutos);
-        $sql = "INSERT INTO eventos (fecha, evento, saldo_clases, comentarios, metadata, horasminutos, uuid) VALUES ('$fecha', 'Check-In', '', '$comentarios', '$metadata', '$horasminutos', '$uuid')";
+        $sql = "INSERT INTO check_ins (fecha, check_ins, saldo_clases, comentarios, metadata, horasminutos, uuid) VALUES ('$fecha', 'Check-In', '', '$comentarios', '$metadata', '$horasminutos', '$uuid')";
         $resultado = mysqli_query($conn, $sql);
         if (!$resultado || mysqli_affected_rows($conn) <= 0) {
-            throw new Exception("Error en la inserción de evento de clase regular para Staff: " . mysqli_error($conn));
+            throw new Exception("Error en la inserción de check_ins de clase regular para Staff: " . mysqli_error($conn));
         }
     } else {
         $arrayClasesDisponibles = obtenerClasesDisponiblesParaUsuario($plan, $edad, $fecha, false);
@@ -52,11 +52,11 @@ function insertarEventoApi($conn, $estadoActual, $fecha, $horasminutos, $saldo_c
                 $comentarios = 'Asistió: '. $uuid . ', Check In: ' . $comentarios;
                 $metadata = $comentarios;
                 eventoYaExiste($conn, $fecha, 'Check-In', $comentarios, $uuid, $horasminutos);
-                $sql = "INSERT INTO eventos (fecha, evento, saldo_clases, comentarios, metadata, horasminutos, uuid) VALUES ('$fecha', 'Check-In', '', '$comentarios', '$metadata', '$horasminutos', '$uuid')";
+                $sql = "INSERT INTO check_ins (fecha, check_ins, saldo_clases, comentarios, metadata, horasminutos, uuid) VALUES ('$fecha', 'Check-In', '', '$comentarios', '$metadata', '$horasminutos', '$uuid')";
                 $resultado = mysqli_query($conn, $sql);
                 $claseEnPlan = true;
                 if (!$resultado || mysqli_affected_rows($conn) <= 0) {
-                    throw new Exception("Error en la inserción de evento de clase regular: " . mysqli_error($conn));
+                    throw new Exception("Error en la inserción de check_ins de clase regular: " . mysqli_error($conn));
                 }
                 break;
             }
@@ -71,12 +71,12 @@ function insertarEventoApi($conn, $estadoActual, $fecha, $horasminutos, $saldo_c
             $comentarios = 'Asistió: '. $uuid . ', Check In: ' . $comentarios;
             $metadata = $comentarios;
             eventoYaExiste($conn, $fecha, 'Check-In', $comentarios, $uuid, $horasminutos);
-            $sql = "INSERT INTO eventos (fecha, evento, saldo_clases, comentarios, metadata, horasminutos, uuid) VALUES ('$fecha', 'Check-In', '$saldo_clases', '$comentarios', '$metadata', '$horasminutos', '$uuid')";
+            $sql = "INSERT INTO check_ins (fecha, check_ins, saldo_clases, comentarios, metadata, horasminutos, uuid) VALUES ('$fecha', 'Check-In', '$saldo_clases', '$comentarios', '$metadata', '$horasminutos', '$uuid')";
             $resultado = mysqli_query($conn, $sql);
             hallarSaldoClases($conn, $uuid);
             if ($uso_compartido != ""){
                 eventoYaExiste($conn, $fecha, 'Check-In', $comentarios, $uso_compartido, $horasminutos);
-                $sql2 = "INSERT INTO eventos (fecha, evento, saldo_clases, comentarios, metadata, horasminutos, uuid) 
+                $sql2 = "INSERT INTO check_ins (fecha, check_ins, saldo_clases, comentarios, metadata, horasminutos, uuid) 
                 VALUES ('$fecha', 'Check-In', '$saldo_clases', '$comentarios', '$metadata', '$horasminutos', '$uso_compartido')";
                 $resultado2 = mysqli_query($conn, $sql2);
                 hallarSaldoClases($conn, $uso_compartido);
@@ -84,14 +84,14 @@ function insertarEventoApi($conn, $estadoActual, $fecha, $horasminutos, $saldo_c
                 $resultado2 = TRUE;
             }
             if (!$resultado || !$resultado2){
-                throw new Exception("Error en la inserción de evento de clase regular: " . mysqli_error($conn));
+                throw new Exception("Error en la inserción de check_ins de clase regular: " . mysqli_error($conn));
             }
         }
     }
 }
 
 function descongelarAlumno($conn, $uuid) {
-    $sql3 = "SELECT fecha FROM eventos WHERE uuid = '$uuid' AND evento LIKE '%cambio de estado%' AND comentarios LIKE '%congelado%' ORDER BY fecha DESC LIMIT 1";
+    $sql3 = "SELECT fecha FROM check_ins WHERE uuid = '$uuid' AND check_ins LIKE '%cambio de estado%' AND comentarios LIKE '%congelado%' ORDER BY fecha DESC LIMIT 1";
     $res3 = mysqli_query($conn, $sql3);
     if ($res3) {
         if (mysqli_num_rows($res3) > 0) {
@@ -111,30 +111,30 @@ function descongelarAlumno($conn, $uuid) {
             $res4 = mysqli_query($conn, $sql4);
             if ($res4){
                 eventoYaExiste($conn, $fechaHoy, 'Check-In', 'Cambio de Estado', $comentario, '');
-                $sql5 = "INSERT INTO eventos (fecha, evento, comentarios, uuid) VALUES ('$fechaHoy', 'Cambio de Estado', '$comentario', '$uuid')";
+                $sql5 = "INSERT INTO check_ins (fecha, check_ins, comentarios, uuid) VALUES ('$fechaHoy', 'Cambio de Estado', '$comentario', '$uuid')";
                 $res5 = mysqli_query($conn, $sql5);
                 if (!$res5) {
-                    throw new Exception("Error al insertar evento descongelar usuario: " . mysqli_error($conn));
+                    throw new Exception("Error al insertar check_ins descongelar usuario: " . mysqli_error($conn));
                 }
             } else {
                 throw new Exception("Error al asignar nueva fecha de vencimiento después de descongelar usuario: " . mysqli_error($conn));
             }
         }
     } else {
-        throw new Exception("Error al consultar eventos del usuario a descongelar: " . mysqli_error($conn));
+        throw new Exception("Error al consultar check_ins del usuario a descongelar: " . mysqli_error($conn));
     }
 }
 
-function eventoYaExiste($conn, $fecha, $evento, $comentarios, $uuid, $horasminutos) {
-    $sql = "SELECT id FROM eventos 
-            WHERE fecha = ? AND evento = ? AND comentarios = ? AND uuid = ? AND horasminutos = ?";
+function eventoYaExiste($conn, $fecha, $check_ins, $comentarios, $uuid, $horasminutos) {
+    $sql = "SELECT id FROM check_ins 
+            WHERE fecha = ? AND check_ins = ? AND comentarios = ? AND uuid = ? AND horasminutos = ?";
     $stmt = $conn->prepare($sql);
-    $stmt->bind_param('ssssi', $fecha, $evento, $comentarios, $uuid, $horasminutos);
+    $stmt->bind_param('ssssi', $fecha, $check_ins, $comentarios, $uuid, $horasminutos);
     $stmt->execute();
     $stmt->store_result();
     $existe = $stmt->num_rows > 0;
     $stmt->close();
     if ($existe) {
-        throw new Exception("Evento duplicado.");
+        throw new Exception("check_ins duplicado.");
     }
 }

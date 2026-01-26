@@ -66,13 +66,18 @@ function AppContent() {
   const fetchOndeck = async () => {
     setOndeckError('');
     try {
+      console.log('[DEBUG] Fetching from:', `${API_CONFIG.BASE_URL}${API_ENDPOINTS.ONDECK}`);
       const response = await fetch(`${API_CONFIG.BASE_URL}${API_ENDPOINTS.ONDECK}`, {
         method: 'GET',
         headers: {
           Authorization: API_CONFIG.TOKEN,
         },
       });
-      const data = await response.json();
+      console.log('[DEBUG] Response status:', response.status);
+      const responseText = await response.text();
+      console.log('[DEBUG] Response text:', responseText.substring(0, 200));
+      const data = JSON.parse(responseText);
+      console.log('[DEBUG] Data parsed successfully');
       setOndeckResult(data);
       // Guardar prospectos y foto de prospecto
       if (data.prospectos_ondeck && Array.isArray(data.prospectos_ondeck)) {

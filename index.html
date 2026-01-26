@@ -5,6 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>MatSurfer - Sistema de Gestión para Gimnasios de Artes Marciales</title>
     <meta name="description" content="Plataforma completa para gestionar tu gimnasio de BJJ, Boxeo o Artes Marciales. Check-ins, membresías, clases y más.">
+    <link rel="icon" type="image/png" href="img/logo.png">
     
     <style>
         * {
@@ -14,8 +15,8 @@
         }
 
         :root {
-            --primary: #1a73e8;
-            --primary-dark: #0d47a1;
+            --primary: #0058c9;
+            --primary-dark: #0060d9;
             --secondary: #00bfa5;
             --dark: #1a1a1a;
             --light: #f5f5f5;
@@ -35,9 +36,9 @@
             position: fixed;
             top: 0;
             width: 100%;
-            background: rgba(255, 255, 255, 0.98);
+            background: #000522;
             backdrop-filter: blur(10px);
-            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+            box-shadow: 0 2px 10px rgba(0,0,0,0.3);
             z-index: 1000;
             padding: 1rem 0;
         }
@@ -52,14 +53,14 @@
         }
 
         .logo {
-            font-size: 1.8rem;
-            font-weight: 700;
-            color: var(--primary);
+            display: flex;
+            align-items: center;
             text-decoration: none;
         }
 
-        .logo span {
-            color: var(--secondary);
+        .logo img {
+            height: 40px;
+            width: auto;
         }
 
         .nav-links {
@@ -69,14 +70,14 @@
         }
 
         .nav-links a {
-            color: var(--dark);
+            color: var(--white);
             text-decoration: none;
             font-weight: 500;
             transition: color 0.3s;
         }
 
         .nav-links a:hover {
-            color: var(--primary);
+            color: var(--secondary);
         }
 
         /* Hero Section */
@@ -405,12 +406,15 @@
     <!-- Navigation -->
     <nav>
         <div class="nav-container">
-            <a href="#" class="logo">Mat<span>Surfer</span></a>
+            <a href="#" class="logo">
+                <img src="img/logo.png" alt="MatSurfer">
+            </a>
             <ul class="nav-links">
                 <li><a href="#features">Características</a></li>
                 <li><a href="#benefits">Beneficios</a></li>
                 <li><a href="#pricing">Precios</a></li>
                 <li><a href="#contact">Contacto</a></li>
+                <li><a href="login.html" style="background: var(--white); color: var(--primary); padding: 0.4em 1em; border-radius: 20px; font-weight: 700; margin-left: 0.5em;">Iniciar sesión</a></li>
             </ul>
         </div>
     </nav>
@@ -422,7 +426,7 @@
                 <h1>Gestiona tu gimnasio con un solo tap 🥋</h1>
                 <p>La plataforma todo-en-uno para gimnasios de BJJ, Boxeo y Artes Marciales. Check-ins, membresías, clases y pagos en una sola app.</p>
                 <div class="cta-buttons">
-                    <a href="#contact" class="btn btn-primary">Prueba gratis 30 días</a>
+                    <a href="registro.html" class="btn btn-primary">Prueba gratis 30 días</a>
                     <a href="#features" class="btn btn-secondary">Ver demo</a>
                 </div>
             </div>
@@ -454,9 +458,9 @@
                 <p>Gestión automática de clases por disciplina, grupo y horario. Sincronización perfecta con el sistema.</p>
             </div>
             <div class="feature-card">
-                <div class="feature-icon">👥</div>
-                <h3>Multi-gimnasio</h3>
-                <p>Administra múltiples locaciones desde una sola cuenta. Ideal para franquicias y equipos.</p>
+                <div class="feature-icon">🔔</div>
+                <h3>Notificaciones automáticas</h3>
+                <p>Envía recordatorios y avisos personalizados a tus estudiantes sobre pagos, clases y eventos importantes.</p>
             </div>
             <div class="feature-card">
                 <div class="feature-icon">📲</div>
@@ -523,7 +527,7 @@
                     <li>Reportes básicos</li>
                     <li>Soporte por email</li>
                 </ul>
-                <a href="#contact" class="btn btn-secondary">Empezar gratis</a>
+                <a href="registro.html" class="btn btn-secondary">Empezar gratis</a>
             </div>
             <div class="pricing-card featured">
                 <h3>Professional</h3>
@@ -537,9 +541,10 @@
                     <li>Integración WhatsApp</li>
                     <li>Soporte prioritario</li>
                 </ul>
-                <a href="#contact" class="btn btn-primary">Empezar gratis</a>
+                <a href="registro.html" class="btn btn-primary">Empezar gratis</a>
             </div>
-            <div class="pricing-card">
+            <!-- Plan Enterprise - Oculto temporalmente para futuro lejano -->
+            <div class="pricing-card" style="display: none;">
                 <h3>Enterprise</h3>
                 <div class="price">Contacto</div>
                 <p>Para franquicias y equipos</p>
@@ -560,7 +565,7 @@
     <section class="cta-section">
         <h2>¿Listo para digitalizar tu gimnasio?</h2>
         <p>Únete a los gimnasios que ya transformaron su gestión con MatSurfer</p>
-        <a href="#contact" class="btn btn-primary">Prueba gratis 30 días - Sin tarjeta</a>
+        <a href="registro.html" class="btn btn-primary">Prueba gratis 30 días - Sin tarjeta</a>
     </section>
 
     <!-- Footer -->
@@ -585,7 +590,7 @@
                     <li><a href="#">Centro de ayuda</a></li>
                     <li><a href="#">Tutoriales</a></li>
                     <li><a href="#">Estado del sistema</a></li>
-                    <li><a href="mailto:hola@matsurfer.co">hola@matsurfer.co</a></li>
+                    <li><a href="mailto:soporte@matsurfer.co">soporte@matsurfer.co</a></li>
                 </ul>
             </div>
             <div class="footer-section">
